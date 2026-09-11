@@ -1,10 +1,6 @@
-// KEYO BOT v4 - SERVER COM WEBHOOK
-// Verifica fromMe para evitar loop infinito
-// Usa keyo-bot.js para lógica completa
-
 require('dotenv').config();
 const http = require('http');
-const { bot } = require('./keyo-bot.js');  // ✅ CORREÇÃO: Destruturar { bot }
+const { bot } = require('./keyo-bot.js');
 
 const PORT = process.env.PORT || 3000;
 
@@ -20,8 +16,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Webhook do Evolution
-  if ((req.url === '/webhook' || req.url === '/webhook/evolution') && req.method === 'POST') {
+  // ✅ CORREÇÃO: Usar wildcard para aceitar /webhook/evolution E /webhook/evolution/MESSAGES_UPSERT
+  // Webhook by Events da Evolution concatena o evento à URL
+  if ((req.url.startsWith('/webhook/evolution')) && req.method === 'POST') {
     let body = '';
 
     req.on('data', chunk => {
@@ -32,10 +29,9 @@ const server = http.createServer(async (req, res) => {
       try {
         const event = JSON.parse(body);
         
-        console.log('📥 [WEBHOOK] POST recebido');
+        console.log('📩 [WEBHOOK ENTRADA]:', JSON.stringify(event, null, 2));
 
         // 🔴 VERIFICAÇÃO CRÍTICA: Ignorar mensagens DO BOT
-        // Isso previne loop infinito
         if (event.data?.key?.fromMe === true) {
           console.log('⏭️  [SKIP] Mensagem enviada pelo bot (fromMe=true)');
           res.writeHead(200);
@@ -43,23 +39,28 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        // Verificar se é evento de mensagem
-        const isMessageEvent = event.event === 'MESSAGES_UPSERT';
+        // Aceitar MESSAGES_UPSERT em diferentes formatos
+        const isMessageEvent = event.event === 'MESSAGES_UPSERT' || 
+                               event.event === 'messages.upsert' ||
+                               req.url.includes('MESSAGES_UPSERT');
+        
         if (!isMessageEvent || !event.data?.message) {
-          console.log('⏭️  [SKIP] Não é mensagem do usuário');
+          console.log('⏭️  [SKIP] Não é evento de mensagem ou faltam dados');
           res.writeHead(200);
           res.end(JSON.stringify({ success: true }));
           return;
         }
 
-        // Extrair dados CORRETOS do webhook Evolution
-        // Documentação: https://evolutionapi-evolution-api-90.mintlify.app/concepts/webhooks
+        // Extrair dados corretos do webhook Evolution
         const remoteJid = event.data.key?.remoteJid;
-        const userText = event.data.message?.conversation || 
-                         event.data.message?.extendedTextMessage?.text || '';
+        const msg = event.data.message;
+        const userText = msg.conversation || 
+                         msg.extendedTextMessage?.text || 
+                         msg.buttonsResponseMessage?.selectedButtonId || 
+                         msg.listResponseMessage?.singleSelectReply?.selectedRowId || '';
 
         if (!remoteJid || !userText.trim()) {
-          console.log('⏭️  [SKIP] remoteJid ou mensagem vazia');
+          console.log('⏭️  [SKIP] remoteJid vazio ou mensagem vazia');
           res.writeHead(200);
           res.end(JSON.stringify({ success: true }));
           return;
@@ -68,12 +69,7 @@ const server = http.createServer(async (req, res) => {
         const telefone = remoteJid.split('@')[0];
         console.log(`👤 [${telefone}] "${userText.substring(0, 80)}"`);
 
-        // ✅ CORREÇÃO: Chamar bot.processarMensagem (com { bot })
-        // Isso usa:
-        // - Fluxo LGPD completo
-        // - Coleta de nome
-        // - Claude para IA
-        // - Supabase para dados
+        // ✅ Chamar bot com destructuring correto
         await bot.processarMensagem(telefone, userText);
 
         res.writeHead(200);
@@ -94,7 +90,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
-  console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook`);
   console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook/evolution`);
+  console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook/evolution/MESSAGES_UPSERT`);
   console.log(`✅ Health: GET http://localhost:${PORT}/health\n`);
 });
