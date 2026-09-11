@@ -2,11 +2,11 @@
   "name": "keyo-bot",
   "version": "4.0.0",
   "description": "KEYO - Atendente Virtual WhatsApp EXIT Games Brasil",
-  "main": "server.js",
+  "main": "server-webhook.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server-webhook.js",
+    "dev": "node server-webhook.js"
   },
   "engines": {
     "node": ">=18"
