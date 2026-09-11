@@ -794,8 +794,8 @@ async function enviarMensagem(tel, texto) {
         headers: { 'Content-Type': 'application/json', 'apikey': CFG.evolutionKey },
         body: JSON.stringify({
           number: numero,
-          options: { delay: 1200, presence: 'composing' },
-          textMessage: { text: texto }
+          text: texto,
+          options: { delay: 1200, presence: 'composing' }
         })
       }
     );
