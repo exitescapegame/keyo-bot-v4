@@ -1,188 +1,143 @@
-// KEYO BOT v4 - ULTRA SIMPLES - FUNCIONA
 require('dotenv').config();
-const http = require('http');
-const Anthropic = require('@anthropic-ai/sdk');
+const express = require('express');
 
-// ═══════════════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════════════
+const app = express();
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-const EVOLUTION_URL = process.env.EVOLUTION_URL || 'https://evolution-api-production-2ca5.up.railway.app';
-const EVOLUTION_KEY = process.env.EVOLUTION_KEY;
-const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE || 'exit-keyo';
+
+// ✅ MODELO CORRETO PARA SETEMBRO 2026
+const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
-console.log('\n🚀 KEYO BOT v4 - INICIANDO\n');
+console.log('\n🚀 KEYO BOT v4 - SERVIDOR INICIANDO');
+console.log(`📦 Usando modelo: ${ANTHROPIC_MODEL}`);
+console.log(`🔑 API Key presente: ${ANTHROPIC_API_KEY ? '✅' : '❌'}\n`);
 
-if (!ANTHROPIC_API_KEY) {
-  console.log('❌ ANTHROPIC_API_KEY não definida!');
-  process.exit(1);
-}
+// Estado em memória para conversas
+const conversas = new Map();
 
-if (!EVOLUTION_KEY) {
-  console.log('❌ EVOLUTION_KEY não definida!');
-  process.exit(1);
-}
+async function chamarClaude(mensagemUsuario, historico = []) {
+  try {
+    // Adiciona mensagem atual ao histórico
+    const messages = [
+      ...historico,
+      { role: 'user', content: mensagemUsuario }
+    ];
 
-const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-
-// ═══════════════════════════════════════════════════════════════
-// HTTP SERVER
-// ═══════════════════════════════════════════════════════════════
-
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-
-  // Health check
-  if (req.url === '/health' && req.method === 'GET') {
-    res.writeHead(200);
-    res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
-    return;
-  }
-
-  // Webhook
-  if ((req.url === '/webhook' || req.url === '/webhook/evolution') && req.method === 'POST') {
-    console.log('📥 [WEBHOOK] POST recebido');
-
-    let body = '';
-
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
-
-    req.on('end', async () => {
-      try {
-        const event = JSON.parse(body);
-        console.log('✅ [JSON] Parseado com sucesso');
-        console.log('[DEBUG] Payload completo:', JSON.stringify(event, null, 2));
-
-        // Extrair mensagem
-        const isMessageEvent = event.event === 'MESSAGES_UPSERT' || event.event === 'messages.upsert';
-        
-        if (!isMessageEvent || !event.data?.message) {
-          console.log('⏭️ [SKIP] Não é mensagem do cliente');
-          res.writeHead(200);
-          res.end(JSON.stringify({ success: true }));
-          return;
-        }
-
-        const message = event.data.message;
-        const remoteJid = event.data.key?.remoteJid;
-        const userText = message.conversation || message.extendedTextMessage?.text || '';
-
-        if (!remoteJid || !userText.trim()) {
-          console.log('⏭️ [SKIP] remoteJid ou mensagem vazia');
-          res.writeHead(200);
-          res.end(JSON.stringify({ success: true }));
-          return;
-        }
-
-        const phoneNumber = remoteJid.split('@')[0];
-        console.log(`👤 [${phoneNumber}] "${userText}"`);
-
-        // Chamar Claude
-        console.log('📞 [CLAUDE] Chamando API...');
-        const response = await client.messages.create({
-          model: 'claude-opus-4-6',
-          max_tokens: 500,
-          system: `Você é KEYO, atendente virtual da EXIT Games Brasil (escape rooms).
-Seja amigável, breve, direto. Sempre em português.
-
-Informações:
-- SALVADOR: walk-in only (sem agendamento), Seg-Sab 14:00-22:00, Dom 12:00-21:00
-- Preços: Seg-Quinta R$35 | Sexta-Dom R$45
-- Salas: Quarto 209 (médio) e Loira do Banheiro (fácil)
-- Aracaju: FECHADA (procurando novo local)
-- Pets: Aceitos (se couberem na sala)
-- Contato: +55 79 98852-1010`,
-          messages: [
-            { role: 'user', content: userText }
-          ]
-        });
-
-        const botReply = response.content[0]?.text || 'Desculpe, não consegui processar.';
-        console.log(`✅ [CLAUDE] Respondeu: "${botReply.substring(0, 60)}..."`);
-
-        // Enviar para Evolution
-        console.log('📤 [EVOLUTION] Enviando resposta...');
-        await sendToEvolution(phoneNumber, botReply);
-        console.log('✅ [OK] Resposta enviada\n');
-
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true }));
-      } catch (error) {
-        console.error('❌ [ERROR]', error.message);
-        res.writeHead(500);
-        res.end(JSON.stringify({ error: error.message }));
-      }
-    });
-
-    return;
-  }
-
-  // 404
-  res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found' }));
-});
-
-// ═══════════════════════════════════════════════════════════════
-// ENVIAR PARA EVOLUTION
-// ═══════════════════════════════════════════════════════════════
-
-async function sendToEvolution(phoneNumber, message) {
-  const url = `${EVOLUTION_URL}/message/sendText/${EVOLUTION_INSTANCE}`;
-
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      number: phoneNumber,
-      text: message
-    });
-
-    const options = {
-      hostname: new URL(url).hostname,
-      port: 443,
-      path: new URL(url).pathname + new URL(url).search,
+    const response = await fetch(ANTHROPIC_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
-        'apikey': EVOLUTION_KEY
-      }
-    };
-
-    const req = require('https').request(options, (res) => {
-      let responseData = '';
-      res.on('data', chunk => (responseData += chunk));
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve();
-        } else {
-          reject(new Error(`Evolution retornou ${res.statusCode}`));
-        }
-      });
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1024,
+        system: `Você é Keyo, atendente virtual da EXIT Games Brasil. 
+Seja amigável, conversacional e honesto. 
+Se não souber algo com 100% certeza, encaminhe para o atendente.
+Não invente informações sobre preços, horários ou descontos.
+Fale sempre em português brasileiro.`,
+        messages: messages
+      })
     });
 
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
+    if (!response.ok) {
+      const erro = await response.json();
+      console.error('❌ [CLAUDE API ERROR]', erro);
+      throw new Error(`Claude API error: ${erro.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const resposta = data.content?.[0]?.text || 'Desculpa, não consegui processar isso.';
+    
+    return {
+      resposta,
+      historico: [...messages, { role: 'assistant', content: resposta }]
+    };
+  } catch (erro) {
+    console.error('❌ [ERRO AO CHAMAR CLAUDE]:', erro.message);
+    throw erro;
+  }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// START
-// ═══════════════════════════════════════════════════════════════
+async function enviarWhatsApp(telefone, mensagem) {
+  try {
+    // Aqui você integraria com Evolution API para enviar
+    // Por enquanto, apenas log
+    console.log(`📱 [WHATSAPP] Para ${telefone}: ${mensagem.substring(0, 80)}...`);
+  } catch (erro) {
+    console.error('❌ [ERRO AO ENVIAR WHATSAPP]:', erro.message);
+  }
+}
 
-server.listen(PORT, () => {
-  console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
-  console.log(`✅ Health check: GET http://localhost:${PORT}/health`);
-  console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook\n`);
+app.post('/webhook/evolution', async (req, res) => {
+  try {
+    const event = req.body;
+
+    console.log('📥 [WEBHOOK] POST recebido');
+
+    // Ignorar mensagens enviadas pelo próprio bot
+    if (event.data?.key?.fromMe === true) {
+      console.log('⏭️  [SKIP] Mensagem enviada pelo bot (fromMe=true)');
+      return res.json({ success: true });
+    }
+
+    // Aceitar tanto MESSAGES_UPSERT quanto messages.upsert
+    const isMessageEvent = event.event === 'MESSAGES_UPSERT' || event.event === 'messages.upsert';
+    
+    if (!isMessageEvent || !event.data?.message) {
+      console.log('⏭️  [SKIP] Não é evento de mensagem ou faltam dados');
+      return res.json({ success: true });
+    }
+
+    const remoteJid = event.data.key?.remoteJid;
+    const userText = event.data.message?.conversation || 
+                     event.data.message?.extendedTextMessage?.text || '';
+
+    if (!remoteJid || !userText.trim()) {
+      console.log('⏭️  [SKIP] remoteJid vazio ou mensagem vazia');
+      return res.json({ success: true });
+    }
+
+    const telefone = remoteJid.split('@')[0];
+    console.log(`👤 [${telefone}] "${userText.substring(0, 80)}"`);
+
+    // Obter ou criar conversa
+    let conversa = conversas.get(telefone) || { historico: [] };
+
+    // Chamar Claude
+    const { resposta, historico } = await chamarClaude(userText, conversa.historico);
+    
+    // Atualizar histórico
+    conversa.historico = historico;
+    conversas.set(telefone, conversa);
+
+    console.log(`🤖 [RESPOSTA] ${resposta.substring(0, 100)}...`);
+
+    // Enviar resposta (quando Evolution API estiver conectada)
+    await enviarWhatsApp(telefone, resposta);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ [ERRO WEBHOOK]:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-process.on('SIGTERM', () => {
-  console.log('\n🛑 Encerrando...');
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-    process.exit(0);
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    modelo: ANTHROPIC_MODEL,
+    timestamp: new Date().toISOString() 
   });
+});
+
+app.listen(PORT, () => {
+  console.log(`✅ Servidor KEYO-BOT rodando na porta ${PORT}`);
+  console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook/evolution`);
+  console.log(`✅ Health: GET http://localhost:${PORT}/health\n`);
 });
