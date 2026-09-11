@@ -4,7 +4,7 @@
 
 require('dotenv').config();
 const http = require('http');
-const keyoBot = require('./keyo-bot.js');
+const { bot } = require('./keyo-bot.js');  // ✅ CORREÇÃO: Destruturar { bot }
 
 const PORT = process.env.PORT || 3000;
 
@@ -68,13 +68,13 @@ const server = http.createServer(async (req, res) => {
         const telefone = remoteJid.split('@')[0];
         console.log(`👤 [${telefone}] "${userText.substring(0, 80)}"`);
 
-        // Chamar keyo-bot.js para processar
+        // ✅ CORREÇÃO: Chamar bot.processarMensagem (com { bot })
         // Isso usa:
         // - Fluxo LGPD completo
         // - Coleta de nome
         // - Claude para IA
         // - Supabase para dados
-        await keyoBot.processarMensagem(telefone, userText);
+        await bot.processarMensagem(telefone, userText);
 
         res.writeHead(200);
         res.end(JSON.stringify({ success: true }));
@@ -97,12 +97,4 @@ server.listen(PORT, () => {
   console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook`);
   console.log(`✅ Webhook: POST http://localhost:${PORT}/webhook/evolution`);
   console.log(`✅ Health: GET http://localhost:${PORT}/health\n`);
-});
-
-process.on('SIGTERM', () => {
-  console.log('\n🛑 Encerrando...');
-  server.close(() => {
-    console.log('✅ Servidor fechado');
-    process.exit(0);
-  });
 });
