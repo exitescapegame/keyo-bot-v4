@@ -42,8 +42,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Webhook
-  if (req.url === '/webhook' && req.method === 'POST') {
-    console.log('📥 [WEBHOOK] POST /webhook recebido');
+  if ((req.url === '/webhook' || req.url === '/webhook/evolution') && req.method === 'POST') {
+    console.log('📥 [WEBHOOK] POST recebido');
 
     let body = '';
 
