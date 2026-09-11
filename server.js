@@ -55,6 +55,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const event = JSON.parse(body);
         console.log('✅ [JSON] Parseado com sucesso');
+        console.log('[DEBUG] Payload completo:', JSON.stringify(event, null, 2));
 
         // Extrair mensagem
         const isMessageEvent = event.event === 'MESSAGES_UPSERT' || event.event === 'messages.upsert';
@@ -67,8 +68,8 @@ const server = http.createServer(async (req, res) => {
         }
 
         const message = event.data.message;
-        const remoteJid = message.key?.remoteJid || message.remoteJid;
-        const userText = message.conversation || message.extendedTextMessage?.text || message.body || '';
+        const remoteJid = event.data.key?.remoteJid;
+        const userText = message.conversation || message.extendedTextMessage?.text || '';
 
         if (!remoteJid || !userText.trim()) {
           console.log('⏭️ [SKIP] remoteJid ou mensagem vazia');
