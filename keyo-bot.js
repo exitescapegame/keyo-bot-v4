@@ -46,8 +46,14 @@ const CFG = {
   nomeBot:   'Keyo',
   nomeMarca: 'EXIT Games',
   site:      'https://www.exitgamesbrasil.com.br',
+  // Numero fixo do atendente humano da EXIT Games. Nao vem de env de proposito:
+  // e sempre este, e uma variavel mal configurada mandaria o aviso para o vazio.
   telAtendente: '+55 79 98852-1010',
 };
+
+// Mesmo numero, so digitos — usado para enviar e para NAO tratar o atendente
+// como se fosse um cliente (senao a resposta dele vira uma nova conversa).
+CFG.telAtendenteJid = String(CFG.telAtendente).replace(/\D/g, '');
 
 if (!CFG.anthropicKey) console.error('[KEYO] ⚠️  ANTHROPIC_API_KEY não definida!');
 if (!CFG.evolutionUrl) console.error('[KEYO] ⚠️  EVOLUTION_URL não definida!');
@@ -529,6 +535,14 @@ async function _executarFerramenta(nome, input, sessao) {
       criadoEm: new Date().toISOString()
     }).catch(() => {});
 
+    await _avisarAtendente({
+      telCliente: sessao.telefone,
+      nomeCliente: sessao.nome,
+      motivo: input.motivo,
+      urgente: input.urgente || false,
+      historico: sessao.lgpdStatus === 'aceito' ? sessao.historico : null
+    });
+
     await supabase.registrarAuditoria(
       'ESCALONAMENTO_WHATSAPP',
       `Escalonado para humano: ${sessao.telefone} — ${input.motivo}`,
@@ -676,6 +690,44 @@ function _extrairNome(texto) {
     .join(' ');
 }
 
+// ── Aviso ao atendente humano ────────────────────────────────────────────────
+// Additivo por design: qualquer falha aqui e engolida e registrada. O cliente
+// nunca percebe, e o fluxo principal nunca quebra por causa deste aviso.
+async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, historico }) {
+  try {
+    if (!CFG.telAtendenteJid) return false;
+    if (CFG.telAtendenteJid === String(telCliente).replace(/\D/g, '')) return false;
+
+    const linhas = [
+      urgente ? '🚨 *ESCALONAMENTO URGENTE*' : '🔔 *Escalonamento KEYO*',
+      '',
+      `👤 Cliente: ${nomeCliente || '(nome não informado)'}`,
+      `📱 Telefone: ${telCliente}`,
+      `📝 Motivo: ${motivo || 'não especificado'}`,
+      `🕒 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,
+    ];
+
+    // Historico so entra quando existe consentimento. Em recusa LGPD vem vazio.
+    if (Array.isArray(historico) && historico.length) {
+      linhas.push('', '💬 *Últimas mensagens:*');
+      for (const m of historico.slice(-6)) {
+        const quem = m.role === 'user' ? 'Cliente' : 'Keyo';
+        const txt  = typeof m.content === 'string'
+          ? m.content
+          : (m.content || []).map(c => c.text || '').join(' ');
+        if (txt && txt.trim()) linhas.push(`• _${quem}:_ ${txt.trim().slice(0, 160)}`);
+      }
+    }
+
+    const ok = await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
+    console.info(`[KEYO] 🔔 Atendente avisado sobre ${telCliente}: ${ok ? 'ok' : 'falhou'}`);
+    return ok;
+  } catch (e) {
+    console.error('[KEYO] Falha ao avisar atendente (ignorada):', e.message);
+    return false;
+  }
+}
+
 // ── Consentimento: aceite e recusa ───────────────────────────────────────────
 async function _registrarAceite(tel, sessao, texto) {
   sessao.lgpdStatus  = 'aceito';
@@ -724,6 +776,15 @@ async function _registrarRecusa(tel, sessao) {
     `Cliente ${tel} recusou os termos via WhatsApp — escalado para atendente`,
     'KEYO-BOT'
   ).catch(() => {});
+
+  // Sem historico: o cliente negou consentimento.
+  await _avisarAtendente({
+    telCliente: tel,
+    nomeCliente: sessao.nome,
+    motivo: 'Recusou os termos LGPD — atender sem coletar dados',
+    urgente: false,
+    historico: null
+  });
 
   console.info(`[KEYO] ❌ Consentimento recusado e escalado: ${tel}`);
 }
@@ -815,6 +876,13 @@ async function processarMensagem(tel, texto) {
   }
   const sessao = _sessoes[tel];
   sessao.ts = agora;
+
+  // ── TRAVA ANTI-LOOP ──────────────────────────────────────────────────────
+  // O atendente recebe avisos do bot. Se ele responder, NAO pode virar cliente.
+  if (String(tel).replace(/\D/g, '') === CFG.telAtendenteJid) {
+    console.info(`[KEYO] ⏭️  Mensagem do atendente ignorada: "${String(texto).slice(0, 60)}"`);
+    return;
+  }
 
   // ── BLOCO NOME — vem ANTES da LGPD ───────────────────────────────────────
 
