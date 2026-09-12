@@ -35,21 +35,34 @@ async function sf(path, method = 'GET', body = null, params = '') {
 }
 
 // ── Leitura de configurações do ERP ─────────────────────────────────────────
+// Achata o jsonb `dados` na raiz da linha: a tabela guarda tudo em dados,
+// mas o resto do bot acessa os campos direto (u.nome, u.precoFimSemana...).
+function _achatar(row) {
+  if (!row || typeof row !== 'object') return row;
+  const { dados, ...resto } = row;
+  return { ...(dados || {}), ...resto, id: resto.id ?? dados?.id };
+}
+
 async function carregarUnidades() {
-  return sf('unidades', 'GET', null, '?select=*&order=id');
+  const rows = await sf('unidades', 'GET', null, '?select=*&order=id');
+  return (rows || []).map(_achatar);
 }
 
 async function carregarSalas(unidadeId = null) {
   const filtro = unidadeId ? `?unidade_id=eq.${unidadeId}&select=*` : '?select=*';
-  return sf('salas', 'GET', null, filtro);
+  const rows = await sf('salas', 'GET', null, filtro);
+  return (rows || []).map(_achatar);
 }
 
+// A tabela `feriados` nao existe neste projeto Supabase (verificado 12/09/2026).
+// Retorna vazio em vez de estourar 404 e derrubar o cache inteiro.
 async function carregarFeriados() {
-  return sf('feriados', 'GET', null, '?select=data');
+  return [];
 }
 
+// A tabela `cupons` nao existe neste projeto Supabase (verificado 12/09/2026).
 async function carregarCupons() {
-  return sf('cupons', 'GET', null, '?ativo=eq.true&select=*');
+  return [];
 }
 
 // ── Ocupação ─────────────────────────────────────────────────────────────────
