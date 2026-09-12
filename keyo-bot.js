@@ -40,7 +40,7 @@ const CFG = {
 
   // Comportamento
   timeoutHumanoMs: 10 * 60 * 1000,  // 10 min → escala para humano
-  maxMsgPorMin:    5,
+  maxMsgPorMin:    15,               // 5 era facil demais de bater numa conversa normal
   maxTurnosAgente: 6,                // Máximo de ferramentas encadeadas por resposta
 
   nomeBot:   'Keyo',
@@ -62,6 +62,7 @@ if (!CFG.evolutionUrl) console.error('[KEYO] ⚠️  EVOLUTION_URL não definida
 // { [tel]: { historico, etapa, dadosReserva, ts, aguardaHumano, lgpdConsentiu } }
 const _sessoes = {};
 const _rateLimit = {};
+const _rateLimitAviso = {};   // ultimo aviso de excesso por telefone
 
 // ── Cache de dados do ERP (recarrega a cada 5 min) ───────────────────────────
 let _cache = { unidades: [], salas: [], feriados: [], cupons: [], ts: 0 };
@@ -523,8 +524,15 @@ async function _executarFerramenta(nome, input, sessao) {
 
   // ── escalar_humano ────────────────────────────────────────────────────────
   if (nome === 'escalar_humano') {
+    // Se ja esta escalado, nao avisa o atendente de novo (evita spam).
+    const jaEscalado = sessao.aguardaHumano === true;
     sessao.aguardaHumano = true;
+    sessao.aguardaHumanoDesde = sessao.aguardaHumanoDesde || Date.now();
     sessao.motivoEscalamento = input.motivo;
+    if (jaEscalado) {
+      return JSON.stringify({ ok: true, jaEscalado: true,
+        mensagem: 'Atendente já foi acionado anteriormente.' });
+    }
 
     // Salva na memória KEYO para o ERP exibir
     await supabase.salvarMemoria('whatsapp_escalonamento', sessao.telefone, {
@@ -590,7 +598,17 @@ async function _pensarEResponder(mensagemUsuario, sessao) {
   const unidadeId = sessao.unidadeId
     || _cache.unidades.find(u => u.ativa)?.id
     || _cache.unidades[0]?.id || '2';
-  const systemPrompt = await _buildSystemPrompt(unidadeId, sessao.nome);
+  let systemPrompt = await _buildSystemPrompt(unidadeId, sessao.nome);
+  if (sessao.aguardaHumano) {
+    systemPrompt += `
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ SITUAÇÃO ATUAL: um atendente humano JÁ foi acionado para este cliente e vai entrar em contato.
+- NÃO chame *escalar_humano* de novo. O atendente já foi avisado.
+- Continue respondendo normalmente as dúvidas simples que o cliente fizer (preço, horário, salas, pets, descontos, localização).
+- Se o cliente perguntar sobre o assunto que foi escalado, lembre com naturalidade que o atendente já está a caminho.
+- NÃO feche reserva nem gere pagamento enquanto o atendente não assumir.`;
+  }
 
   for (let rodada = 0; rodada < CFG.maxTurnosAgente; rodada++) {
     const payload = {
@@ -760,6 +778,7 @@ async function _registrarAceite(tel, sessao, texto) {
 async function _registrarRecusa(tel, sessao) {
   sessao.lgpdStatus    = 'recusado';
   sessao.aguardaHumano = true;
+  sessao.aguardaHumanoDesde = Date.now();
 
   await enviarMensagem(tel, _MSG_RECUSA);
 
@@ -790,9 +809,9 @@ async function _registrarRecusa(tel, sessao) {
 }
 
 // ── Mensagem de termos LGPD (enviada no primeiro contato) ────────────────────
-const _MSG_TERMOS = `Olá! 👋 Sou o *Keyo*, atendente virtual da *EXIT Games*.
-
-Antes de começarmos, preciso do seu aceite:
+// Sem saudacao aqui: esta mensagem vem logo apos a apresentacao e o nome,
+// entao repetir "Ola, sou o Keyo" soaria como se ele tivesse esquecido.
+const _MSG_TERMOS = `Antes de começarmos, preciso do seu aceite:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📋 *TERMOS DE USO E PRIVACIDADE*
@@ -849,6 +868,12 @@ async function processarMensagem(tel, texto) {
   _rateLimit[tel] = _rateLimit[tel].filter(ts => agora - ts < 60000);
   if (_rateLimit[tel].length >= CFG.maxMsgPorMin) {
     console.warn(`[KEYO] Rate-limit: ${tel}`);
+    // NUNCA sumir em silencio. Avisa uma unica vez por janela de 1 min.
+    if (!_rateLimitAviso[tel] || agora - _rateLimitAviso[tel] > 60000) {
+      _rateLimitAviso[tel] = agora;
+      await enviarMensagem(tel,
+        'Opa, chegaram muitas mensagens de uma vez! 😅 Me dá um minutinho e já te respondo.');
+    }
     return;
   }
   _rateLimit[tel].push(agora);
@@ -860,6 +885,7 @@ async function processarMensagem(tel, texto) {
       historico: [],
       ts: agora,
       aguardaHumano: false,
+      aguardaHumanoDesde: null,
       preReserva: null,
       unidadeId: null,
       // Nome do cliente — 3 estados: 'pendente' | 'aguardando' | 'ok'
@@ -905,9 +931,9 @@ async function processarMensagem(tel, texto) {
     sessao.nomeStatus = 'ok';
     console.info(`[KEYO] 🙋 Nome capturado: ${tel} → ${nome}`);
 
-    await enviarMensagem(tel, `Prazer te conhecer, *${nome}*! 🎉`);
+    // Uma mensagem so: duas seguidas custavam um round-trip e um delay extra.
     sessao.lgpdStatus = 'aguardando';
-    await enviarMensagem(tel, _MSG_TERMOS);
+    await enviarMensagem(tel, `Prazer te conhecer, *${nome}*! 🎉\n\n${_MSG_TERMOS}`);
     console.info(`[KEYO] 📋 Termos LGPD enviados para ${tel}`);
     return;
   }
@@ -947,20 +973,32 @@ async function processarMensagem(tel, texto) {
       await _registrarAceite(tel, sessao, texto);
       return;
     }
-    if (sessao.aguardaHumano) {
+    // Escalado ha pouco: o humano esta a caminho, nao repete o aviso a cada
+    // mensagem. Passado o timeout, volta a orientar em vez de ficar mudo.
+    if (sessao.aguardaHumano
+        && (Date.now() - (sessao.aguardaHumanoDesde || 0)) <= CFG.timeoutHumanoMs) {
       console.info(`[KEYO] ${tel} recusou LGPD e aguarda humano: "${texto.slice(0, 60)}"`);
       return;
     }
+    sessao.aguardaHumanoDesde = Date.now(); // nao repete antes do proximo ciclo
     await enviarMensagem(tel, _MSG_RECUSA_RETORNO);
     return;
   }
 
   // ── A partir daqui: cliente aceitou os termos ─────────────────────────────
 
-  // Aguardando humano — não responde com bot
+  // Aguardando humano. O bot NAO assume o assunto escalado, mas tambem NUNCA
+  // fica mudo: segue respondendo duvidas simples ate o humano chegar.
+  // Passados CFG.timeoutHumanoMs sem retorno, volta ao normal por completo.
   if (sessao.aguardaHumano) {
-    console.info(`[KEYO] ${tel} aguarda humano: "${texto.slice(0, 60)}"`);
-    return;
+    const decorrido = Date.now() - (sessao.aguardaHumanoDesde || 0);
+    if (decorrido > CFG.timeoutHumanoMs) {
+      console.info(`[KEYO] ${tel} liberado da espera por humano (${Math.round(decorrido/60000)} min)`);
+      sessao.aguardaHumano = false;
+      sessao.aguardaHumanoDesde = null;
+    } else {
+      console.info(`[KEYO] ${tel} aguarda humano, respondendo dúvida simples: "${texto.slice(0, 60)}"`);
+    }
   }
 
   const resposta = await _pensarEResponder(texto, sessao);
@@ -1051,7 +1089,9 @@ async function enviarMensagem(tel, texto) {
         body: JSON.stringify({
           number: numero,
           text: texto,
-          options: { delay: 1200, presence: 'composing' }
+          // 1200ms era ~1,2s de espera fabricada POR mensagem. 300ms ainda
+          // mostra "digitando" sem pesar na percepcao de lentidao.
+          options: { delay: 300, presence: 'composing' }
         })
       }
     );
