@@ -9,6 +9,9 @@ console.log('\n🚀 KEYO BOT v4 - SERVIDOR INICIANDO\n');
 const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
+  // 🌐 LOG GLOBAL - INTERCEPTA QUALQUER REQUISIÇÃO
+  console.log(`🌐 [REQUISIÇÃO RECEBIDA] ${req.method} | ${req.url} | IP: ${req.socket.remoteAddress}`);
+
   // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200);
@@ -16,8 +19,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ✅ CORREÇÃO: Usar wildcard para aceitar /webhook/evolution E /webhook/evolution/MESSAGES_UPSERT
-  // Webhook by Events da Evolution concatena o evento à URL
+  // ✅ Aceita /webhook/evolution com qualquer sufixo (Webhook by Events)
   if ((req.url.startsWith('/webhook/evolution')) && req.method === 'POST') {
     let body = '';
 
@@ -31,7 +33,7 @@ const server = http.createServer(async (req, res) => {
         
         console.log('📩 [WEBHOOK ENTRADA]:', JSON.stringify(event, null, 2));
 
-        // 🔴 VERIFICAÇÃO CRÍTICA: Ignorar mensagens DO BOT
+        // Ignorar mensagens DO BOT
         if (event.data?.key?.fromMe === true) {
           console.log('⏭️  [SKIP] Mensagem enviada pelo bot (fromMe=true)');
           res.writeHead(200);
@@ -69,7 +71,7 @@ const server = http.createServer(async (req, res) => {
         const telefone = remoteJid.split('@')[0];
         console.log(`👤 [${telefone}] "${userText.substring(0, 80)}"`);
 
-        // ✅ Chamar bot com destructuring correto
+        // Chamar bot com destructuring correto
         await bot.processarMensagem(telefone, userText);
 
         res.writeHead(200);
