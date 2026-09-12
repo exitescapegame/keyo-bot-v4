@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 3000;
 console.log('\n🚀 KEYO BOT v4 - SERVIDOR INICIANDO\n');
 
 const server = http.createServer(async (req, res) => {
+  console.log("[REQ] " + req.method + " " + req.url);
   res.setHeader('Content-Type', 'application/json');
 
   // 🌐 LOG GLOBAL - INTERCEPTA QUALQUER REQUISIÇÃO
