@@ -109,6 +109,25 @@ function _horariosDoDia(unidade, dataObj, ehFeriado) {
     .split(',').map(h => h.trim()).filter(Boolean);
 }
 
+// [08/10/2026] Texto de preco de UMA sala. Usa o preco cadastrado na sala;
+// se faltar, cai no preco da unidade (comportamento antigo).
+function _numPreco(v) {
+  const n = parseFloat(v);
+  return (v !== null && v !== undefined && v !== '' && !isNaN(n) && n > 0) ? n : null;
+}
+function _fmtReais(n) {
+  return 'R$ ' + (Number.isInteger(n) ? String(n) : n.toFixed(2).replace('.', ','));
+}
+function _textoPrecoSala(sala, unidade) {
+  const u = unidade || {};
+  const sem = _numPreco(sala?.precoSemana)    ?? _numPreco(sala?.precoBase) ?? _numPreco(u.precoSemana)    ?? 35;
+  const fds = _numPreco(sala?.precoFimSemana) ?? _numPreco(sala?.precoBase) ?? _numPreco(u.precoFimSemana) ?? 45;
+  const fer = _numPreco(sala?.precoFeriado)   ?? fds;
+  if (sem === fds && fds === fer) return `${_fmtReais(sem)} por pessoa, todos os dias (inclusive feriados)`;
+  if (fds === fer) return `${_fmtReais(sem)} por pessoa de segunda a quinta; ${_fmtReais(fds)} de sexta a domingo e feriados`;
+  return `${_fmtReais(sem)} por pessoa de segunda a quinta; ${_fmtReais(fds)} de sexta a domingo; ${_fmtReais(fer)} em feriados`;
+}
+
 // ── System Prompt ─────────────────────────────────────────────────────────────
 async function _buildSystemPrompt(unidadeId, nomeCliente) {
   const db      = await _getCache();
@@ -120,17 +139,38 @@ async function _buildSystemPrompt(unidadeId, nomeCliente) {
   const unidade = db.unidades.find(u => String(u.id) === String(unidadeId))
     || db.unidades.find(u => u.ativa)
     || db.unidades[0];
-  const salas   = db.salas.filter(s =>
-    String(s.unidade_id || s.unidadeId) === String(unidade?.id) && !s.manutencao
+  // [08/10/2026] Salas da unidade separadas em 3 grupos:
+  //  - ativas:   em operacao (sem manutencao e sem encerrada)
+  //  - emBreve:  cadastradas, ainda ocultas no ERP (manutencao + emBreve)
+  //  - sairam:   fora de operacao de vez (encerrada) — historico preservado
+  const salasUnidade = db.salas.filter(s =>
+    String(s.unidade_id || s.unidadeId) === String(unidade?.id)
   );
+  const salas   = salasUnidade.filter(s => !s.manutencao && !s.encerrada);
+  const emBreve = salasUnidade.filter(s => s.manutencao && s.emBreve && !s.encerrada);
+  const sairam  = salasUnidade.filter(s => s.encerrada);
 
   // O prompt mostra a TABELA geral de precos, nao o preco do dia (regra de negocio).
   // ehFer ainda e necessario para escolher a lista de horarios de hoje.
   const ehFer = db.feriados.some(f => f.data === agora.toISOString().slice(0,10));
 
   const salasDesc = salas.map(s =>
-    `• ${s.emoji || '🚪'} *${s.nome}* — ${s.dificuldade || ''}, ${s.tempo || 60}min, ${s.min_jog || s.minJog || 2}–${s.max_jog || s.maxJog || 6} jogadores. ${s.descricao || ''}`
+    `• ${s.emoji || '🚪'} *${s.nome}* — ${[s.genero, s.dificuldade].filter(Boolean).join(', ')}${(s.genero || s.dificuldade) ? ', ' : ''}${s.tempo || 60}min, ${s.min_jog || s.minJog || 2}–${s.max_jog || s.maxJog || 6} jogadores. ${_textoPrecoSala(s, unidade)}. ${s.descricao || ''}`
   ).join('\n') || 'Consultando salas...';
+
+  const emBreveDesc = emBreve.length
+    ? emBreve.map(s => `• ${s.emoji || '🚪'} *${s.nome}* — ${[s.genero, s.dificuldade].filter(Boolean).join(', ')}${(s.genero || s.dificuldade) ? ', ' : ''}${s.tempo || 60}min, ${s.min_jog || s.minJog || 2}–${s.max_jog || s.maxJog || 6} jogadores. ${s.descricao || ''}`).join('\n')
+      + '\nEssas salas AINDA NÃO ESTÃO ABERTAS. Pode anunciar como novidade, mas NUNCA diga que dá para jogar agora. Se perguntarem a data de estreia, diga que ainda será divulgada — NUNCA invente data.'
+    : '';
+
+  const sairamDesc = sairam.length
+    ? sairam.map(s => `• *${s.nome}*: ${s.mensagemEncerrada || 'saiu de operação.'}`).join('\n')
+      + '\nNUNCA ofereça essas salas. Só fale delas se o cliente perguntar; nesse caso explique com leveza e sugira as salas atuais.'
+    : '';
+
+  const precosDesc = salas.length
+    ? salas.map(s => `- ${s.nome}: ${_textoPrecoSala(s, unidade)}`).join('\n')
+    : `- Segunda a quinta: R$ ${unidade?.precoSemana ?? 35}\n- Sexta, sábado, domingo e feriados: R$ ${unidade?.precoFimSemana ?? 45}`;
 
   const cuponsDesc = db.cupons.length
     ? db.cupons.map(c => `• ${c.codigo} → ${c.tipo === 'percentual' ? c.valor + '% off' : 'R$' + c.valor + ' off'}`).join('\n')
@@ -151,16 +191,15 @@ ${nomeCliente ? `O cliente se chama *${nomeCliente}*. Use o nome dele naturalmen
 
 🚪 SALAS:
 ${salasDesc}
-
+${emBreveDesc ? `\n🆕 EM BREVE:\n${emBreveDesc}\n` : ''}${sairamDesc ? `\n🚫 SALAS QUE SAÍRAM DE OPERAÇÃO:\n${sairamDesc}\n` : ''}
 ⏰ HORÁRIOS:
 - Segunda a sábado: 14:00 às 22:00
 - Domingo e feriados: 12:00 às 21:00
 - Slots de hoje: ${horariosHoje}
 
-💰 PREÇOS (por pessoa):
-- Segunda a quinta: R$ ${unidade?.precoSemana ?? 35}
-- Sexta, sábado, domingo e feriados: R$ ${unidade?.precoFimSemana ?? 45}
-⚠️ Responda preço SEMPRE nesse formato geral. NÃO diga "hoje custa X" — evita confusão.
+💰 PREÇOS (por pessoa, por sala):
+${precosDesc}
+⚠️ O preço depende da SALA. Informe exatamente como está acima. Se o preço é o mesmo todos os dias, diga isso. NÃO invente valores.
 
 🎟️ CUPONS ATIVOS:
 ${cuponsDesc}
