@@ -316,28 +316,35 @@ NUNCA liste os três juntos. Só fale de um desconto se o cliente perguntar espe
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🧭 SETORES DE ATENDIMENTO (o cliente escolhe pelo número do menu ou falando do assunto)
 1️⃣ Salas, preços e horários → você mesmo responde, como sempre.
-2️⃣ Aniversários e festas → atendimento de festas (Detetive Júnior).
+2️⃣ Aniversários e festas → atendimento de festas.
 3️⃣ Empresas e eventos corporativos → atendimento corporativo.
 4️⃣ Parcerias e imprensa → atendimento de parcerias.
 0️⃣ Falar com a equipe → chame *escalar_humano*.
 Se o cliente responder só com o número, siga o setor correspondente. Se ele escrever outra coisa, entenda o assunto e siga normalmente — NUNCA obrigue a escolher número.
 Em qualquer setor: UMA pergunta por mensagem, esperando a resposta antes da próxima. NUNCA mande a lista de perguntas toda de uma vez. Se o cliente já respondeu algo espontaneamente, não pergunte de novo. Se ele não souber ou não quiser responder um item, siga em frente.
 
-🎂 SETOR 2 — ANIVERSÁRIOS E FESTAS (Detetive Júnior)
-Ative quando ouvir: aniversário de criança/adolescente, festa, comemorar com amigos, Detetive Júnior. (Diferente do DESCONTO do aniversariante que vem jogar nas salas — se não ficar claro, pergunte se é para jogar nas salas no dia do aniversário ou para organizar uma festa.)
-Pode citar o *Detetive Júnior*: experiência de escape/investigação feita para festas de aniversário, em que os convidados resolvem enigmas juntos. NÃO conte enigmas, etapas nem como termina — é surpresa.
-Colete, conversando: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados (crianças, adolescentes, adultos juntos?); 5) tema ou estilo preferido (mistério, aventura, susto) — opcional.
-NUNCA fale preço, pacote, disponibilidade de data nem confirme a festa — isso é com a equipe.
+🎂 SETOR 2 — ANIVERSÁRIOS E FESTAS
+Ative quando ouvir: aniversário de criança/adolescente, festa, comemorar com amigos. (Diferente do DESCONTO do aniversariante que vem jogar nas salas — se não ficar claro, pergunte se é para jogar nas salas no dia do aniversário ou para organizar uma festa.)
+PRIMEIRO apresente, de forma curta e animada, o pacote pronto *Experiência Detetive Júnior* (use só estas informações, com suas palavras, em 1 ou 2 mensagens curtas — nada de textão):
+- É uma aventura de investigação criada para festas de aniversário: os convidados viram detetives, são divididos em equipes (cada um recebe uma pulseira colorida e uma Caderneta de Detetive) e precisam solucionar um grande caso.
+- A história é dividida em capítulos; cada equipe tem sua maleta e estação de investigação e avança descobrindo pistas. Envolve observação, raciocínio, desafios práticos e trabalho em equipe, com uma etapa final tecnológica e interativa.
+- Todo mundo participa: as funções se alternam dentro da equipe, e quem tem mais dificuldade recebe ajuda do mestre para chegar ao final. Há momentos-surpresa que envolvem até quem está só assistindo.
+- Ao final, revelação do caso, medalhas e certificados de "Detetive Júnior" para os participantes, e uma cerimônia especial para o aniversariante antes do Parabéns.
+- Inclui: mestre que conduz a experiência, narrativa, maletas de investigação, materiais e cenografia da missão, cadernetas, pulseiras, espaço de fotos temático "Procurado", mural de investigação, efeitos sonoros, etapa final interativa, medalhas e certificados.
+- A missão dura até cerca de 75 minutos (a duração total da festa a equipe confirma).
+- Valor: *a partir de R$ 5.000,00*, para Aracaju e Salvador. Para outras cidades, diga que a equipe avalia e passa as condições.
+NUNCA conte os desafios, as pistas, os mecanismos, os momentos-surpresa em detalhe nem como a história termina — é surpresa. NUNCA fale de coroa. NUNCA confirme data, disponibilidade ou condições de pagamento — isso é com a equipe.
+DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "aniversario") se ele ainda não aceitou. Com o aceite, colete, uma pergunta por vez: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados; 5) alguma preferência ou observação — opcional.
 Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉
 
 🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
 Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários.
-Primeiro CONVERSE: 1) nome da empresa; 2) nome e cargo de quem está falando; 3) data prevista; 4) quantas pessoas; 5) cidade/local; 6) o que a empresa quer com o evento (integração, treinamento, confraternização...). E-mail de contato, se ele quiser passar.
+Antes de coletar qualquer dado, se o cliente ainda não aceitou, chame *pedir_aceite* (setor "empresa"). Depois CONVERSE: 1) nome da empresa; 2) nome e cargo de quem está falando; 3) data prevista; 4) quantas pessoas; 5) cidade/local; 6) o que a empresa quer com o evento (integração, treinamento, confraternização...). E-mail de contato, se ele quiser passar.
 NUNCA fale preço nem prometa formato — cada vivência é desenhada sob medida pela equipe.
 Ao ter os dados, chame *registrar_empresa* (uma vez). Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique: o questionário ajuda a equipe a desenhar a experiência para a realidade da empresa; deve ser preenchido no computador por alguém do RH ou da liderança; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}; e a equipe entra em contato. Se o envio do PDF falhar, diga que a equipe vai enviar o questionário.
 
 🤝 SETOR 4 — PARCERIAS E IMPRENSA
-Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e diga que a equipe vai retornar. Pode informar o e-mail ${CFG.emailContato}.
+Se o cliente ainda não aceitou, chame *pedir_aceite* (setor "parceria") antes de coletar. Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e diga que a equipe vai retornar. Pode informar o e-mail ${CFG.emailContato}.
 
 Se o cliente mandar um arquivo (ex.: o questionário preenchido), o sistema já repassa para a equipe automaticamente.
 
@@ -451,6 +458,17 @@ const _TOOLS = [
     }
   },
   // ── Setores (20/11/2026) ──────────────────────────────────────────────────
+  {
+    name: 'pedir_aceite',
+    description: 'Envia ao cliente o pedido de aceite para anotar dados (LGPD). Chame ANTES de coletar qualquer dado nos setores 2 (festas), 3 (empresas) ou 4 (parcerias), quando o cliente ainda não aceitou. Depois de chamar, não escreva mais nada: o sistema aguarda o SIM/NÃO.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        setor: { type: 'string', enum: ['aniversario', 'empresa', 'parceria'], description: 'Setor que o cliente quer' }
+      },
+      required: ['setor']
+    }
+  },
   {
     name: 'registrar_aniversario',
     description: 'Setor 2 (Aniversários e festas / Detetive Júnior). Chame UMA vez, quando já tiver coletado os dados da festa. Envia o relatório ao atendimento. Preencha só com o que o cliente disse; deixe vazio o que ele não informou.',
@@ -731,8 +749,26 @@ async function _executarFerramenta(nome, input, sessao) {
     }
   }
 
+  // ── Pedido de aceite LGPD dentro de um setor (20/11/2026) ─────────────────
+  if (nome === 'pedir_aceite') {
+    if (sessao.lgpdStatus === 'aceito') {
+      return JSON.stringify({ ok: true, jaAceito: true, instrucao: 'O cliente já aceitou. Siga coletando os dados do setor.' });
+    }
+    sessao.setorPendente = input.setor || 'atendimento';
+    sessao.lgpdStatus = 'aguardando';
+    sessao._suprimirResposta = true;
+    await enviarMensagem(sessao.telefone, _MSG_TERMOS_SETOR);
+    console.info(`[KEYO] 📋 Aceite pedido a ${sessao.telefone} (setor ${sessao.setorPendente})`);
+    return JSON.stringify({ ok: true, instrucao: 'Pedido de aceite enviado ao cliente. Encerre esta resposta sem escrever nada.' });
+  }
+
   // ── Setores: aniversário, empresa, parceria (20/11/2026) ──────────────────
   if (nome === 'registrar_aniversario' || nome === 'registrar_empresa' || nome === 'registrar_parceria') {
+    // TRAVA: sem aceite, nada e registrado nem enviado.
+    if (sessao.lgpdStatus !== 'aceito') {
+      return JSON.stringify({ ok: false, erro: 'precisa_aceite',
+        instrucao: 'O cliente ainda não aceitou anotar os dados. Chame pedir_aceite primeiro.' });
+    }
     const chave = `_registrado_${nome}`;
     if (sessao[chave]) {
       return JSON.stringify({ ok: true, jaRegistrado: true,
@@ -847,8 +883,9 @@ async function _executarFerramenta(nome, input, sessao) {
         mensagem: 'Atendente já foi acionado anteriormente.' });
     }
 
-    // Salva na memória KEYO para o ERP exibir
-    await supabase.salvarMemoria('whatsapp_escalonamento', sessao.telefone, {
+    // Salva na memória KEYO para o ERP exibir — SO com aceite (20/11/2026:
+    // sem aceite, nenhum dado fica gravado; o atendente e avisado so no WhatsApp).
+    if (sessao.lgpdStatus === 'aceito') await supabase.salvarMemoria('whatsapp_escalonamento', sessao.telefone, {
       telefone: sessao.telefone,
       motivo: input.motivo,
       urgente: input.urgente || false,
@@ -883,7 +920,7 @@ async function _executarFerramenta(nome, input, sessao) {
       lead
     });
 
-    await supabase.registrarAuditoria(
+    if (sessao.lgpdStatus === 'aceito') await supabase.registrarAuditoria(
       'ESCALONAMENTO_WHATSAPP',
       `Escalonado para humano: ${sessao.telefone} — ${input.motivo}`,
       'KEYO-BOT'
@@ -931,6 +968,9 @@ async function _pensarEResponder(mensagemUsuario, sessao) {
     || _cache.unidades.find(u => u.ativa)?.id
     || _cache.unidades[0]?.id || '2';
   let systemPrompt = await _buildSystemPrompt(unidadeId, sessao.nome);
+  systemPrompt += sessao.lgpdStatus === 'aceito'
+    ? '\n\n🔒 STATUS: o cliente JÁ aceitou anotar os dados. Pode coletar os dados dos setores 2, 3 e 4.'
+    : '\n\n🔒 STATUS: o cliente AINDA NÃO aceitou anotar dados. Para dúvidas, responda normalmente. Antes de coletar QUALQUER dado nos setores 2, 3 ou 4, chame *pedir_aceite* (e não escreva mais nada nessa resposta).';
   if (sessao.aguardaHumano) {
     systemPrompt += `
 
@@ -999,12 +1039,27 @@ async function _pensarEResponder(mensagemUsuario, sessao) {
 const _MSG_MENU = `Sobre o que você quer falar? Responda com o número:
 
 1️⃣ Salas, preços e horários
-2️⃣ Aniversários e festas (Detetive Júnior)
+2️⃣ Aniversários e festas
 3️⃣ Empresas e eventos corporativos
 4️⃣ Parcerias e imprensa
 0️⃣ Falar com a equipe
 
-Ou, se preferir, é só me contar o que precisa. 😊`;
+Ou, se preferir, é só me contar o que precisa. 😊
+
+_Para tirar dúvidas, nenhum dado seu fica gravado._ 🔒`;
+
+// Aceite pedido SO quando o cliente quer orcamento (festa, empresa, parceria)
+const _MSG_TERMOS_SETOR = `Para a nossa equipe preparar o seu atendimento, preciso anotar alguns dados (nome, telefone e informações do evento). 🔒
+
+Eles são usados *só para esse contato*, não são compartilhados com ninguém, e você pode pedir para apagar quando quiser, escrevendo *apagar meus dados*. _(LGPD — Lei 13.709/2018)_
+
+Posso anotar?
+✅ *SIM*
+❌ *NÃO*`;
+
+const _MSG_RECUSA_SETOR = `Tudo bem! 😊 Sem o aceite eu não anoto nada.
+
+Você pode continuar tirando dúvidas por aqui ou falar direto com a nossa equipe: 📲 ${CFG.telAtendente}`;
 
 const _MSG_APRESENTACAO = `Olá! 👋 Sou o *Keyo*, atendente virtual da *EXIT Games*.
 
@@ -1122,6 +1177,23 @@ async function _registrarAceite(tel, sessao, texto) {
   ).catch(() => {});
 
   console.info(`[KEYO] ✅ Consentimento LGPD registrado: ${tel}`);
+
+  // [20/11/2026] Aceite pedido dentro de um setor: segue direto para o setor.
+  if (sessao.setorPendente) {
+    const setor = sessao.setorPendente;
+    sessao.setorPendente = null;
+    await enviarMensagem(tel, '✅ Prontinho, obrigado! Vamos lá. 😊');
+    try {
+      const resp = await _pensarEResponder(
+        `[Sistema: o cliente aceitou anotar os dados para o setor "${setor}". Continue o atendimento desse setor com a primeira pergunta, uma de cada vez.]`,
+        sessao);
+      if (resp) await enviarMensagem(tel, resp);
+    } catch (e) {
+      console.error('[KEYO] Falha ao continuar setor após aceite:', e.message);
+    }
+    return;
+  }
+
   const quem = sessao.nome ? `, ${sessao.nome}` : '';
   await enviarMensagem(tel,
     `✅ Prontinho${quem}! Consentimento registrado. 😊\n\n${_MSG_MENU}`);
@@ -1130,6 +1202,15 @@ async function _registrarAceite(tel, sessao, texto) {
 // Recusa: escala para humano e NAO grava conteudo da conversa — o cliente
 // negou consentimento, entao so o minimo para alguem retornar o contato.
 async function _registrarRecusa(tel, sessao) {
+  // [20/11/2026] Recusa dentro de um setor: nada e gravado, nada e escalado.
+  // O cliente volta a tirar duvidas normalmente.
+  if (sessao.setorPendente) {
+    sessao.setorPendente = null;
+    sessao.lgpdStatus = 'livre';
+    await enviarMensagem(tel, _MSG_RECUSA_SETOR);
+    console.info(`[KEYO] 🚫 ${tel} recusou anotar dados no setor — segue só com dúvidas`);
+    return;
+  }
   sessao.lgpdStatus    = 'recusado';
   sessao.aguardaHumano = true;
   sessao.aguardaHumanoDesde = Date.now();
@@ -1206,7 +1287,7 @@ Se quiser seguir comigo, responda *SIM, ACEITO*. 😊`;
 // ── Verifica se a resposta do cliente é um aceite ────────────────────────────
 function _ehAceite(texto) {
   const t = texto.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return ['SIM', 'SIM, ACEITO', 'ACEITO', 'SIM ACEITO', 'OK', 'CONCORDO', 'S', 'YES'].some(p => t === p || t.startsWith(p));
+  return ['SIM', 'SIM, ACEITO', 'ACEITO', 'SIM ACEITO', 'OK', 'CONCORDO', 'S', 'YES', 'PODE', 'CLARO', 'CERTO', 'BELEZA'].some(p => t === p || t.startsWith(p));
 }
 
 function _ehRecusa(texto) {
@@ -1288,10 +1369,11 @@ async function processarMensagem(tel, texto) {
     sessao.nomeStatus = 'ok';
     console.info(`[KEYO] 🙋 Nome capturado: ${tel} → ${nome}`);
 
-    // Uma mensagem so: duas seguidas custavam um round-trip e um delay extra.
-    sessao.lgpdStatus = 'aguardando';
-    await enviarMensagem(tel, `Prazer te conhecer, *${nome}*! 🎉\n\n${_MSG_TERMOS}`);
-    console.info(`[KEYO] 📋 Termos LGPD enviados para ${tel}`);
+    // [20/11/2026] Duvidas nao exigem aceite: vai direto ao menu. O aceite LGPD
+    // so e pedido quando o cliente quer orcamento (festa, empresa, parceria).
+    sessao.lgpdStatus = 'livre';
+    await enviarMensagem(tel, `Prazer te conhecer, *${nome}*! 🎉\n\n${_MSG_MENU}`);
+    console.info(`[KEYO] 🧭 Menu enviado para ${tel} (sem aceite: só dúvidas)`);
     return;
   }
 
@@ -1319,7 +1401,7 @@ async function processarMensagem(tel, texto) {
 
     // Resposta não reconhecida — reenvia os termos com instrução clara
     await enviarMensagem(tel,
-      'Não entendi sua resposta. 😊\n\nPor favor, responda apenas:\n✅ *SIM, ACEITO*\n❌ *NÃO*');
+      'Não entendi sua resposta. 😊\n\nPosso anotar seus dados? Responda apenas:\n✅ *SIM*\n❌ *NÃO*');
     return;
   }
 
@@ -1359,6 +1441,12 @@ async function processarMensagem(tel, texto) {
   }
 
   const resposta = await _pensarEResponder(texto, sessao);
+  // [20/11/2026] Se a ferramenta pedir_aceite acabou de mandar os termos, a
+  // mensagem do cliente agora e SO o SIM/NAO: nao manda texto extra da IA.
+  if (sessao._suprimirResposta) {
+    sessao._suprimirResposta = false;
+    return;
+  }
   if (resposta) {
     await enviarMensagem(tel, resposta);
   }
