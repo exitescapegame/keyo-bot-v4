@@ -143,7 +143,7 @@ async function _relVerificarEnvio() {
     _rel.enviadoEm = hoje;
     const textoRel = _relMontarTexto();
     const ok = await enviarMensagem(CFG.telAtendenteJid, textoRel);
-    enviarEmailRelatorio(`Keyo — resumo do dia ${hoje}`, textoRel).catch(() => {});
+
     console.info(`[KEYO] 📊 Relatório diário enviado ao atendente: ${ok ? 'ok' : 'falhou'}`);
   } catch (e) {
     console.error('[KEYO] Falha no relatório diário (ignorada):', e.message);
@@ -793,9 +793,11 @@ async function _executarFerramenta(nome, input, sessao) {
 
     const okAtendimento = await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
     sessao[chave] = true;
-    enviarEmailRelatorio(
-      `${titulo.replace(/[*]/g, '').replace(/ — Keyo$/, '')} — ${input.empresa || input.aniversariante || input.nome || sessao.nome || sessao.telefone}`,
-      linhas.join('\n')).catch(() => {});
+    // E-mail so para EMPRESAS (decisao do Tiago, 20/11/2026). Festas e parcerias: so WhatsApp.
+    if (nome === 'registrar_empresa') {
+      enviarEmailRelatorio(`Lead empresa — Keyo — ${input.empresa || sessao.nome || sessao.telefone}`,
+        linhas.join('\n')).catch(() => {});
+    }
 
     // Relatorio diario (a prova de falha)
     try {
@@ -1090,8 +1092,7 @@ async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, hist
 
     const ok = await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
     console.info(`[KEYO] 🔔 Atendente avisado sobre ${telCliente}: ${ok ? 'ok' : 'falhou'}`);
-    enviarEmailRelatorio(`${lead ? 'Lead de evento' : 'Encaminhamento'} — Keyo — ${nomeCliente || telCliente}`,
-      linhas.join('\n')).catch(() => {});
+
     return ok;
   } catch (e) {
     console.error('[KEYO] Falha ao avisar atendente (ignorada):', e.message);
@@ -1596,8 +1597,14 @@ async function processarDocumento(tel, dados) {
       await enviarDocumento(CFG.telAtendenteJid, midia.base64, midia.fileName || nomeArq,
         `Arquivo enviado por ${sessao?.nome || tel}`, midia.mimetype || doc.mimetype || 'application/pdf');
     }
-    enviarEmailRelatorio(`Documento recebido pelo Keyo — ${sessao?.nome || dados?.pushName || tel}`,
-      linhas.join('\n'), midia ? { base64: midia.base64, fileName: midia.fileName || nomeArq } : null).catch(() => {});
+    // E-mail so quando o documento e de EMPRESA (cliente que passou pelo setor 3
+    // ou arquivo com cara de questionario/briefing). Resto: so WhatsApp.
+    const docDeEmpresa = !!(sessao && sessao._registrado_registrar_empresa)
+      || /question|briefing/i.test(`${nomeArq} ${midia?.fileName || ''}`);
+    if (docDeEmpresa) {
+      enviarEmailRelatorio(`Questionário/documento de empresa — Keyo — ${sessao?.nome || dados?.pushName || tel}`,
+        linhas.join('\n'), midia ? { base64: midia.base64, fileName: midia.fileName || nomeArq } : null).catch(() => {});
+    }
     await enviarMensagem(tel,
       `Recebi seu arquivo! 📎 Já encaminhei para a nossa equipe, que vai analisar e entrar em contato. Se preferir, também pode enviar para ${CFG.emailContato}. 😊`);
     console.info(`[KEYO] 📎 Documento de ${tel} repassado ao atendimento (${midia ? 'com arquivo' : 'sem arquivo'})`);
