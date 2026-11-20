@@ -234,7 +234,9 @@ async function _buildSystemPrompt(unidadeId, nomeCliente) {
   const isoHoje  = agora.toLocaleDateString('sv-SE', { timeZone:'America/Bahia' }); // AAAA-MM-DD
   const diaSem   = new Date(isoHoje + 'T12:00:00Z').getUTCDay(); // 0 = domingo
   const nomeFer  = _FERIADOS[isoHoje] || _FERIADOS[isoHoje.slice(5)] || '';
-  const horarioHoje = nomeFer ? '13:00 às 21:00' : (diaSem === 0 ? '12:00 às 21:00' : '14:00 às 22:00');
+  // Domingos e feriados: 12h as 21h. Excecao informada pelo Tiago: 20/11/2026 abre as 13h.
+  const _EXCECOES = { '2026-11-20': '13:00 às 21:00' };
+  const horarioHoje = _EXCECOES[isoHoje] || ((nomeFer || diaSem === 0) ? '12:00 às 21:00' : '14:00 às 22:00');
 
   // Padrao: primeira unidade ATIVA. db.unidades[0] traria Aracaju (id=1), fechada.
   const unidade = db.unidades.find(u => String(u.id) === String(unidadeId))
@@ -295,8 +297,7 @@ ${salasDesc}
 ${emBreveDesc ? `\n🆕 EM BREVE:\n${emBreveDesc}\n` : ''}${sairamDesc ? `\n🚫 SALAS QUE SAÍRAM DE OPERAÇÃO:\n${sairamDesc}\n` : ''}
 ⏰ HORÁRIOS:
 - Segunda a sábado: 14:00 às 22:00
-- Domingo: 12:00 às 21:00
-- Feriados: 13:00 às 21:00
+- Domingos e feriados: 12:00 às 21:00
 - HOJE (${dataHoje}${nomeFer ? `, FERIADO — ${nomeFer}` : ''}): aberto das ${horarioHoje}. Agora são ${hora} (horário da Bahia). Use SEMPRE este horário de hoje e esta hora; NUNCA calcule a hora por conta própria.
 - Funciona por ordem de chegada (walk-in): NÃO há reserva, NÃO há consulta de horário disponível e NÃO há lista de horários marcados.
 - Se perguntarem "tem horário hoje?", "que horas tem vaga?" ou parecido: responda direto com o horário de funcionamento acima e diga que é só chegar, por ordem de chegada, chegando 15 minutos antes. NUNCA diga que não conseguiu consultar e NUNCA mande ligar ou falar com a equipe por causa disso.
