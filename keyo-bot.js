@@ -215,12 +215,26 @@ function _textoPrecoSala(sala, unidade) {
   return `${_fmtReais(sem)} por pessoa de segunda a quinta; ${_fmtReais(fds)} de sexta a domingo; ${_fmtReais(fer)} em feriados`;
 }
 
+// [20/11/2026] Feriados (nacionais + Bahia). Chave MM-DD = todo ano; AAAA-MM-DD = data movel.
+const _FERIADOS = {
+  '01-01': 'Confraternização Universal', '04-21': 'Tiradentes', '05-01': 'Dia do Trabalho',
+  '07-02': 'Independência da Bahia', '09-07': 'Independência do Brasil', '10-12': 'Nossa Senhora Aparecida',
+  '11-02': 'Finados', '11-15': 'Proclamação da República', '11-20': 'Dia Nacional de Zumbi e da Consciência Negra',
+  '12-25': 'Natal',
+  '2027-02-08': 'Carnaval', '2027-02-09': 'Carnaval', '2027-03-26': 'Sexta-feira Santa', '2027-05-27': 'Corpus Christi'
+};
+
 // ── System Prompt ─────────────────────────────────────────────────────────────
 async function _buildSystemPrompt(unidadeId, nomeCliente) {
   const db      = await _getCache();
   const agora   = new Date();
-  const dataHoje = agora.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-  const hora     = agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  // [20/11/2026] Data e hora SEMPRE no fuso da Bahia (o servidor roda em UTC: dizia 16h39 as 13h39)
+  const dataHoje = agora.toLocaleDateString('pt-BR', { timeZone:'America/Bahia', weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const hora     = agora.toLocaleTimeString('pt-BR', { timeZone:'America/Bahia', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+  const isoHoje  = agora.toLocaleDateString('sv-SE', { timeZone:'America/Bahia' }); // AAAA-MM-DD
+  const diaSem   = new Date(isoHoje + 'T12:00:00Z').getUTCDay(); // 0 = domingo
+  const nomeFer  = _FERIADOS[isoHoje] || _FERIADOS[isoHoje.slice(5)] || '';
+  const horarioHoje = nomeFer ? '13:00 às 21:00' : (diaSem === 0 ? '12:00 às 21:00' : '14:00 às 22:00');
 
   // Padrao: primeira unidade ATIVA. db.unidades[0] traria Aracaju (id=1), fechada.
   const unidade = db.unidades.find(u => String(u.id) === String(unidadeId))
@@ -239,7 +253,7 @@ async function _buildSystemPrompt(unidadeId, nomeCliente) {
 
   // O prompt mostra a TABELA geral de precos, nao o preco do dia (regra de negocio).
   // ehFer ainda e necessario para escolher a lista de horarios de hoje.
-  const ehFer = db.feriados.some(f => f.data === agora.toISOString().slice(0,10));
+  const ehFer = !!nomeFer || db.feriados.some(f => f.data === isoHoje);
 
   const salasDesc = salas.map(s =>
     `• ${s.emoji || '🚪'} *${s.nome}* — ${[s.genero, s.dificuldade].filter(Boolean).join(', ')}${(s.genero || s.dificuldade) ? ', ' : ''}${s.tempo || 60}min, ${s.min_jog || s.minJog || 2}–${s.max_jog || s.maxJog || 6} jogadores. ${_textoPrecoSala(s, unidade)}. ${s.descricao || ''}`
@@ -281,7 +295,9 @@ ${salasDesc}
 ${emBreveDesc ? `\n🆕 EM BREVE:\n${emBreveDesc}\n` : ''}${sairamDesc ? `\n🚫 SALAS QUE SAÍRAM DE OPERAÇÃO:\n${sairamDesc}\n` : ''}
 ⏰ HORÁRIOS:
 - Segunda a sábado: 14:00 às 22:00
-- Domingo e feriados: 12:00 às 21:00
+- Domingo: 12:00 às 21:00
+- Feriados: 13:00 às 21:00
+- HOJE (${dataHoje}${nomeFer ? `, FERIADO — ${nomeFer}` : ''}): aberto das ${horarioHoje}. Agora são ${hora} (horário da Bahia). Use SEMPRE este horário de hoje e esta hora; NUNCA calcule a hora por conta própria.
 - Funciona por ordem de chegada (walk-in): NÃO há reserva, NÃO há consulta de horário disponível e NÃO há lista de horários marcados.
 - Se perguntarem "tem horário hoje?", "que horas tem vaga?" ou parecido: responda direto com o horário de funcionamento acima e diga que é só chegar, por ordem de chegada, chegando 15 minutos antes. NUNCA diga que não conseguiu consultar e NUNCA mande ligar ou falar com a equipe por causa disso.
 
