@@ -282,7 +282,8 @@ ${emBreveDesc ? `\n🆕 EM BREVE:\n${emBreveDesc}\n` : ''}${sairamDesc ? `\n🚫
 ⏰ HORÁRIOS:
 - Segunda a sábado: 14:00 às 22:00
 - Domingo e feriados: 12:00 às 21:00
-- Slots de hoje: ${horariosHoje}
+- Funciona por ordem de chegada (walk-in): NÃO há reserva, NÃO há consulta de horário disponível e NÃO há lista de horários marcados.
+- Se perguntarem "tem horário hoje?", "que horas tem vaga?" ou parecido: responda direto com o horário de funcionamento acima e diga que é só chegar, por ordem de chegada, chegando 15 minutos antes. NUNCA diga que não conseguiu consultar e NUNCA mande ligar ou falar com a equipe por causa disso.
 
 💰 PREÇOS (por pessoa, por sala):
 ${precosDesc}
@@ -357,14 +358,8 @@ Se o cliente ainda não aceitou, chame *pedir_aceite* (setor "parceria") antes d
 Se o cliente mandar um arquivo (ex.: o questionário preenchido), o sistema já repassa para a equipe automaticamente.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📋 FLUXO DE RESERVA (só onde há agendamento)
-1. Pergunte a data
-2. Pergunte a sala (ou sugira)
-3. Chame *consultar_horarios* — NUNCA afirme disponibilidade sem consultar
-4. Confirme horário, número de jogadores e nome completo
-5. Pergunte se tem cupom
-6. Chame *gerar_pagamento_pix* → envie QR Code, chave Pix e prazo de 15 min
-7. Aguarde a confirmação do pagamento — SOMENTE então chame *confirmar_reserva*
+📋 RESERVAS
+A EXIT NÃO trabalha com agendamento nem reserva online. Se o cliente quiser reservar, explique com simpatia que é por ordem de chegada e convide a aparecer. NÃO fale em Pix, pagamento antecipado ou consulta de horários. NÃO pergunte data nem horário em que o cliente pretende vir — não há o que reservar; depois de ajudar a escolher a sala, já passe o horário de funcionamento e o endereço.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ⭐ AVALIAÇÃO
@@ -377,7 +372,7 @@ Pergunte UMA vez só. Se o cliente ignorar, não insista.
 🚫 REGRAS ABSOLUTAS
 - JAMAIS confirme reserva sem pagamento confirmado pelo sistema
 - JAMAIS processe cancelamento ou alteração de horário — diga "Vou chamar um atendente para te ajudar com isso" e chame *escalar_humano*
-- JAMAIS invente horários, preços, descontos ou disponibilidade — use as ferramentas
+- JAMAIS invente horários, preços ou descontos — use só as informações deste prompt
 - JAMAIS colete dados além do necessário
 - Se não souber algo com 100% de certeza, NÃO invente: encaminhe para ${CFG.telAtendente} e chame *escalar_humano*
 - Se o cliente pedir exclusão dos dados, chame *solicitar_exclusao_lgpd*
@@ -1008,7 +1003,7 @@ async function _pensarEResponder(mensagemUsuario, sessao) {
       model:      CFG.model,
       max_tokens: CFG.maxTokens,
       system:     systemPrompt,
-      tools:      _TOOLS,
+      tools:      _TOOLS.filter(t => !['consultar_horarios','gerar_pagamento_pix','confirmar_reserva'].includes(t.name)), // [20/11/2026] sem agendamento: walk-in
       messages:   sessao.historico
     };
 
@@ -1538,6 +1533,8 @@ async function processarPagamento(payload) {
 
 // ── Envio de mensagem via Evolution API ──────────────────────────────────────
 async function enviarMensagem(tel, texto) {
+  // [20/11/2026] WhatsApp usa *um* asterisco para negrito; ** aparece cru para o cliente
+  if (typeof texto === 'string') texto = texto.replace(/\*\*(.+?)\*\*/gs, '*$1*');
   if (!CFG.evolutionUrl || CFG.evolutionUrl.includes('SEU-SERVIDOR')) {
     console.log(`[KEYO] [MOCK] → ${tel}: ${texto.slice(0, 80)}`);
     return true;
