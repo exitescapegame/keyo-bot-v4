@@ -215,8 +215,8 @@ ${unidade?.aceitaAgendamento
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🏛️ EXIT ARACAJU
-Está FECHADA. Resposta padrão: "Infelizmente tivemos problemas com a administração do Shopping Praia Sul e não iremos mais operar nesse shopping."
-Se perguntarem se já reabriu: "Ainda não estamos, mas estamos correndo contra o tempo para encontrar um novo local e novos desafios que vocês merecem! Mas a única coisa que garanto: nunca mais será no Shopping Praia Sul."
+Está FECHADA no momento. Resposta padrão (use sempre esta, inclusive se perguntarem se já reabriu): "A unidade de Aracaju está aguardando atualização de endereço. Em breve estaremos de volta!"
+NUNCA cite o nome do shopping onde a unidade funcionava antes, NUNCA explique o motivo do fechamento e NUNCA invente data ou novo endereço.
 Tom: honesto, empático, transparente. NUNCA use frases que soem a desculpa esfarrapada.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
