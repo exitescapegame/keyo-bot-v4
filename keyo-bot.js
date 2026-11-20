@@ -64,6 +64,83 @@ const _sessoes = {};
 const _rateLimit = {};
 const _rateLimitAviso = {};   // ultimo aviso de excesso por telefone
 
+// ── Relatorio diario ao atendente (20/11/2026) ───────────────────────────────
+// Aditivo: so conta em memoria e manda um resumo por dia as 22h10 (Bahia).
+// Qualquer falha aqui e engolida: o atendimento ao cliente nunca depende disto.
+// Sem IA: contagem por palavra-chave, custo zero de API.
+const _rel = { dia: null, inicio: null, conversas: new Set(), novos: new Set(),
+               temas: {}, leads: [], escalados: 0, enviadoEm: null };
+const _REL_TEMAS = [
+  ['preço',          /pre[cç]o|valor|quanto|custa/i],
+  ['horário',        /hor[aá]rio|abre|fecha|funciona/i],
+  ['salas',          /\bsala/i],
+  ['reserva',        /reserv|agend/i],
+  ['aniversário',    /anivers/i],
+  ['evento/empresa', /evento|empresa|corporativ|festa|grupo/i],
+  ['localização',    /onde fica|endere[cç]|localiza/i]
+];
+function _relDia(d = new Date()) {
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Bahia' });
+}
+function _relGarantirDia() {
+  const hoje = _relDia();
+  if (_rel.dia !== hoje) {
+    _rel.dia = hoje; _rel.inicio = new Date();
+    _rel.conversas = new Set(); _rel.novos = new Set();
+    _rel.temas = {}; _rel.leads = []; _rel.escalados = 0;
+  }
+}
+function _relRegistrarMensagem(tel, texto, novo) {
+  try {
+    _relGarantirDia();
+    _rel.conversas.add(tel);
+    if (novo) _rel.novos.add(tel);
+    for (const [tema, re] of _REL_TEMAS) {
+      if (re.test(String(texto))) _rel.temas[tema] = (_rel.temas[tema] || 0) + 1;
+    }
+  } catch (e) { /* nunca quebra o atendimento */ }
+}
+function _relMontarTexto() {
+  _relGarantirDia();
+  const temas = Object.entries(_rel.temas).sort((a, b) => b[1] - a[1])
+    .slice(0, 4).map(([t, n]) => `${t} (${n})`).join(', ');
+  const leads = _rel.leads.length
+    ? _rel.leads.map(l => `• ${l.responsavel || 'sem nome'} — ${l.empresa_evento || 'evento'} — ${l.qtd_pessoas || '?'} pessoas — ${l.telefone_contato || l.telefone}`).join('\n')
+    : 'nenhum';
+  const inicioHora = _rel.inicio
+    ? _rel.inicio.toLocaleTimeString('pt-BR', { timeZone: 'America/Bahia', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    : '00:00';
+  const linhas = [
+    `📊 *Keyo — resumo de hoje (${_rel.dia.slice(0, 5)})*`,
+    '',
+    `💬 Conversas: ${_rel.conversas.size} · Novos clientes: ${_rel.novos.size}`,
+    `❓ Mais perguntado: ${temas || '—'}`,
+    `🔥 Leads de evento: ${_rel.leads.length}`,
+    leads,
+    `🔔 Encaminhados ao atendente: ${_rel.escalados}`
+  ];
+  if (inicioHora > '00:30') {
+    linhas.push('', `_(contagem desde ${inicioHora}: o Keyo foi reiniciado hoje)_`);
+  }
+  return linhas.join('\n');
+}
+async function _relVerificarEnvio() {
+  try {
+    const agora = new Date();
+    const hm = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Bahia', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const hoje = _relDia(agora);
+    // Janela 22:10–22:40: se o Keyo reiniciar depois disso, nao manda resumo zerado.
+    if (hm < '22:10' || hm > '22:40' || _rel.enviadoEm === hoje) return;
+    if (!CFG.telAtendenteJid) return;
+    _rel.enviadoEm = hoje;
+    const ok = await enviarMensagem(CFG.telAtendenteJid, _relMontarTexto());
+    console.info(`[KEYO] 📊 Relatório diário enviado ao atendente: ${ok ? 'ok' : 'falhou'}`);
+  } catch (e) {
+    console.error('[KEYO] Falha no relatório diário (ignorada):', e.message);
+  }
+}
+setInterval(_relVerificarEnvio, 60 * 1000);
+
 // ── Cache de dados do ERP (recarrega a cada 5 min) ───────────────────────────
 let _cache = { unidades: [], salas: [], feriados: [], cupons: [], ts: 0 };
 
@@ -231,7 +308,7 @@ NUNCA liste os três juntos. Só fale de um desconto se o cliente perguntar espe
 Ative quando ouvir: corporativo, evento, festa, team building, confraternização, desenvolvimento organizacional.
 Colete CONVERSACIONALMENTE, uma pergunta de cada vez, esperando a resposta antes da próxima. NUNCA mande a lista toda de uma vez.
 O que precisa saber: nome da empresa ou do evento; telefone de contato; cidade do evento; nome do responsável; quantidade de pessoas.
-Depois de ter tudo: "Vou anotar seus dados e passar para o nosso atendente" e chame *escalar_humano*.
+Depois de ter tudo: "Vou anotar seus dados e passar para o nosso atendente" e chame *escalar_humano* com tipo "evento", preenchendo empresa_evento, qtd_pessoas, cidade, responsavel e telefone_contato exatamente com o que o cliente informou (deixe vazio o que ele não disse — NUNCA invente).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 📋 FLUXO DE RESERVA (só onde há agendamento)
@@ -331,7 +408,13 @@ const _TOOLS = [
       type: 'object',
       properties: {
         motivo:   { type: 'string', description: 'Motivo do escalonamento' },
-        urgente:  { type: 'boolean', description: 'true se for reclamação grave ou problema urgente' }
+        urgente:  { type: 'boolean', description: 'true se for reclamação grave ou problema urgente' },
+        tipo:     { type: 'string', enum: ['evento', 'outro'], description: "'evento' para evento corporativo, festa ou grupo; 'outro' para o resto" },
+        empresa_evento:   { type: 'string', description: 'Só para evento: nome da empresa ou do evento, como o cliente informou' },
+        qtd_pessoas:      { type: 'string', description: 'Só para evento: quantidade de pessoas informada' },
+        cidade:           { type: 'string', description: 'Só para evento: cidade/local do evento' },
+        responsavel:      { type: 'string', description: 'Só para evento: nome do responsável' },
+        telefone_contato: { type: 'string', description: 'Só para evento: telefone de contato informado' }
       },
       required: ['motivo']
     }
@@ -582,12 +665,31 @@ async function _executarFerramenta(nome, input, sessao) {
       criadoEm: new Date().toISOString()
     }).catch(() => {});
 
+    // Relatorio diario + lead de evento (20/11/2026). Aditivo e a prova de falha.
+    let lead = null;
+    try {
+      _relGarantirDia();
+      _rel.escalados++;
+      if (input.tipo === 'evento') {
+        lead = {
+          telefone: sessao.telefone,
+          empresa_evento:   input.empresa_evento || '',
+          qtd_pessoas:      input.qtd_pessoas || '',
+          cidade:           input.cidade || '',
+          responsavel:      input.responsavel || sessao.nome || '',
+          telefone_contato: input.telefone_contato || ''
+        };
+        _rel.leads.push(lead);
+      }
+    } catch (e) { lead = null; }
+
     await _avisarAtendente({
       telCliente: sessao.telefone,
       nomeCliente: sessao.nome,
       motivo: input.motivo,
       urgente: input.urgente || false,
-      historico: sessao.lgpdStatus === 'aceito' ? sessao.historico : null
+      historico: sessao.lgpdStatus === 'aceito' ? sessao.historico : null,
+      lead
     });
 
     await supabase.registrarAuditoria(
@@ -750,12 +852,22 @@ function _extrairNome(texto) {
 // ── Aviso ao atendente humano ────────────────────────────────────────────────
 // Additivo por design: qualquer falha aqui e engolida e registrada. O cliente
 // nunca percebe, e o fluxo principal nunca quebra por causa deste aviso.
-async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, historico }) {
+async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, historico, lead }) {
   try {
     if (!CFG.telAtendenteJid) return false;
     if (CFG.telAtendenteJid === String(telCliente).replace(/\D/g, '')) return false;
 
-    const linhas = [
+    const linhas = lead ? [
+      '🔥 *Lead de evento — Keyo*',
+      '',
+      `👤 Responsável: ${lead.responsavel || '(não informado)'}`,
+      `🏢 Empresa/evento: ${lead.empresa_evento || '(não informado)'}`,
+      `👥 Pessoas: ${lead.qtd_pessoas || '(não informado)'}`,
+      `📍 Cidade: ${lead.cidade || '(não informada)'}`,
+      `📞 Telefone de contato: ${lead.telefone_contato || telCliente}`,
+      `📱 WhatsApp da conversa: ${telCliente}`,
+      `🕒 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,
+    ] : [
       urgente ? '🚨 *ESCALONAMENTO URGENTE*' : '🔔 *Escalonamento KEYO*',
       '',
       `👤 Cliente: ${nomeCliente || '(nome não informado)'}`,
@@ -918,6 +1030,7 @@ async function processarMensagem(tel, texto) {
   _rateLimit[tel].push(agora);
 
   // Inicializa sessão
+  const _sessaoNova = !_sessoes[tel];   // so para o relatorio diario
   if (!_sessoes[tel]) {
     _sessoes[tel] = {
       telefone: tel,
@@ -948,6 +1061,8 @@ async function processarMensagem(tel, texto) {
     console.info(`[KEYO] ⏭️  Mensagem do atendente ignorada: "${String(texto).slice(0, 60)}"`);
     return;
   }
+
+  _relRegistrarMensagem(tel, texto, _sessaoNova);
 
   // ── BLOCO NOME — vem ANTES da LGPD ───────────────────────────────────────
 
