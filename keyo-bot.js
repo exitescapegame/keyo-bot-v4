@@ -49,6 +49,10 @@ const CFG = {
   // Numero fixo do atendente humano da EXIT Games. Nao vem de env de proposito:
   // e sempre este, e uma variavel mal configurada mandaria o aviso para o vazio.
   telAtendente: '+55 79 98852-1010',
+  // E-mail oficial (20/11/2026): pode ser passado aos clientes, inclusive empresas
+  emailContato: 'contato@exitgamesbrasil.com.br',
+  // Questionario de briefing para empresas (PDF preenchivel, vai junto no repo)
+  arquivoQuestionario: require('path').join(__dirname, 'assets', 'Questionario_Briefing_ExitGames.pdf'),
 };
 
 // Mesmo numero, so digitos — usado para enviar e para NAO tratar o atendente
@@ -304,11 +308,32 @@ NUNCA liste os três juntos. Só fale de um desconto se o cliente perguntar espe
 3. Instagram + app do shopping: seguir @exitgames.ssa e cadastrar no app do Salvador Norte Shopping dá R$ 5 de desconto.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 EVENTOS, CORPORATIVO E FESTAS (grupo — diferente de aniversariante individual)
-Ative quando ouvir: corporativo, evento, festa, team building, confraternização, desenvolvimento organizacional.
-Colete CONVERSACIONALMENTE, uma pergunta de cada vez, esperando a resposta antes da próxima. NUNCA mande a lista toda de uma vez.
-O que precisa saber: nome da empresa ou do evento; telefone de contato; cidade do evento; nome do responsável; quantidade de pessoas.
-Depois de ter tudo: "Vou anotar seus dados e passar para o nosso atendente" e chame *escalar_humano* com tipo "evento", preenchendo empresa_evento, qtd_pessoas, cidade, responsavel e telefone_contato exatamente com o que o cliente informou (deixe vazio o que ele não disse — NUNCA invente).
+🧭 SETORES DE ATENDIMENTO (o cliente escolhe pelo número do menu ou falando do assunto)
+1️⃣ Salas, preços e horários → você mesmo responde, como sempre.
+2️⃣ Aniversários e festas → atendimento de festas (Detetive Júnior).
+3️⃣ Empresas e eventos corporativos → atendimento corporativo.
+4️⃣ Parcerias e imprensa → atendimento de parcerias.
+0️⃣ Falar com a equipe → chame *escalar_humano*.
+Se o cliente responder só com o número, siga o setor correspondente. Se ele escrever outra coisa, entenda o assunto e siga normalmente — NUNCA obrigue a escolher número.
+Em qualquer setor: UMA pergunta por mensagem, esperando a resposta antes da próxima. NUNCA mande a lista de perguntas toda de uma vez. Se o cliente já respondeu algo espontaneamente, não pergunte de novo. Se ele não souber ou não quiser responder um item, siga em frente.
+
+🎂 SETOR 2 — ANIVERSÁRIOS E FESTAS (Detetive Júnior)
+Ative quando ouvir: aniversário de criança/adolescente, festa, comemorar com amigos, Detetive Júnior. (Diferente do DESCONTO do aniversariante que vem jogar nas salas — se não ficar claro, pergunte se é para jogar nas salas no dia do aniversário ou para organizar uma festa.)
+Pode citar o *Detetive Júnior*: experiência de escape/investigação feita para festas de aniversário, em que os convidados resolvem enigmas juntos. NÃO conte enigmas, etapas nem como termina — é surpresa.
+Colete, conversando: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados (crianças, adolescentes, adultos juntos?); 5) tema ou estilo preferido (mistério, aventura, susto) — opcional.
+NUNCA fale preço, pacote, disponibilidade de data nem confirme a festa — isso é com a equipe.
+Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉
+
+🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
+Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários.
+Primeiro CONVERSE: 1) nome da empresa; 2) nome e cargo de quem está falando; 3) data prevista; 4) quantas pessoas; 5) cidade/local; 6) o que a empresa quer com o evento (integração, treinamento, confraternização...). E-mail de contato, se ele quiser passar.
+NUNCA fale preço nem prometa formato — cada vivência é desenhada sob medida pela equipe.
+Ao ter os dados, chame *registrar_empresa* (uma vez). Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique: o questionário ajuda a equipe a desenhar a experiência para a realidade da empresa; deve ser preenchido no computador por alguém do RH ou da liderança; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}; e a equipe entra em contato. Se o envio do PDF falhar, diga que a equipe vai enviar o questionário.
+
+🤝 SETOR 4 — PARCERIAS E IMPRENSA
+Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e diga que a equipe vai retornar. Pode informar o e-mail ${CFG.emailContato}.
+
+Se o cliente mandar um arquivo (ex.: o questionário preenchido), o sistema já repassa para a equipe automaticamente.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 📋 FLUXO DE RESERVA (só onde há agendamento)
@@ -417,6 +442,62 @@ const _TOOLS = [
         telefone_contato: { type: 'string', description: 'Só para evento: telefone de contato informado' }
       },
       required: ['motivo']
+    }
+  },
+  // ── Setores (20/11/2026) ──────────────────────────────────────────────────
+  {
+    name: 'registrar_aniversario',
+    description: 'Setor 2 (Aniversários e festas / Detetive Júnior). Chame UMA vez, quando já tiver coletado os dados da festa. Envia o relatório ao atendimento. Preencha só com o que o cliente disse; deixe vazio o que ele não informou.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        responsavel:   { type: 'string', description: 'Nome de quem está organizando' },
+        aniversariante:{ type: 'string', description: 'Nome do aniversariante' },
+        idade:         { type: 'string', description: 'Idade que o aniversariante vai fazer' },
+        data:          { type: 'string', description: 'Data da festa, como o cliente informou' },
+        horario:       { type: 'string', description: 'Horário desejado' },
+        local:         { type: 'string', description: 'Na loja da EXIT ou outro local (salão, casa, condomínio...)' },
+        cidade:        { type: 'string' },
+        endereco:      { type: 'string', description: 'Endereço, se a festa não for na loja da EXIT' },
+        participantes: { type: 'string', description: 'Quantidade de participantes' },
+        faixa_etaria:  { type: 'string', description: 'Idade dos convidados (crianças, adolescentes, adultos juntos...)' },
+        preferencias:  { type: 'string', description: 'Tema ou estilo (mistério, aventura, susto...) e observações' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'registrar_empresa',
+    description: 'Setor 3 (Empresas e eventos corporativos). Chame UMA vez, depois da conversa inicial (empresa, responsável, data, pessoas...). Envia o lead ao atendimento E envia ao cliente o Questionário de Briefing em PDF para preencher.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        empresa:          { type: 'string', description: 'Nome da empresa' },
+        responsavel:      { type: 'string', description: 'Nome do responsável' },
+        cargo:            { type: 'string', description: 'Cargo do responsável' },
+        data_prevista:    { type: 'string' },
+        qtd_pessoas:      { type: 'string' },
+        cidade:           { type: 'string', description: 'Cidade/local do evento' },
+        objetivo:         { type: 'string', description: 'O que a empresa quer com o evento (integração, treinamento, confraternização...)' },
+        email:            { type: 'string', description: 'E-mail de contato, se o cliente informou' },
+        telefone_contato: { type: 'string', description: 'Telefone de contato, se diferente do WhatsApp' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'registrar_parceria',
+    description: 'Setor 4 (Parcerias e imprensa). Chame UMA vez, quando tiver os dados. Envia o relatório ao atendimento.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nome:             { type: 'string' },
+        empresa_veiculo:  { type: 'string', description: 'Empresa, marca ou veículo de imprensa' },
+        assunto:          { type: 'string', description: 'O que a pessoa propõe ou precisa' },
+        email:            { type: 'string' },
+        telefone_contato: { type: 'string' }
+      },
+      required: []
     }
   },
   {
@@ -644,6 +725,105 @@ async function _executarFerramenta(nome, input, sessao) {
     }
   }
 
+  // ── Setores: aniversário, empresa, parceria (20/11/2026) ──────────────────
+  if (nome === 'registrar_aniversario' || nome === 'registrar_empresa' || nome === 'registrar_parceria') {
+    const chave = `_registrado_${nome}`;
+    if (sessao[chave]) {
+      return JSON.stringify({ ok: true, jaRegistrado: true,
+        mensagem: 'Já registrado e enviado à equipe nesta conversa. Não chame de novo.' });
+    }
+    const v = (x) => (x && String(x).trim()) ? String(x).trim() : '(não informado)';
+    let titulo, campos, tipoMemoria;
+    if (nome === 'registrar_aniversario') {
+      titulo = '🎂 *Aniversário / Detetive Júnior — Keyo*';
+      tipoMemoria = 'whatsapp_aniversario';
+      campos = [
+        `👤 Responsável: ${v(input.responsavel || sessao.nome)}`,
+        `🎉 Aniversariante: ${v(input.aniversariante)} — ${v(input.idade)} anos`,
+        `📅 Data: ${v(input.data)} · 🕒 Horário: ${v(input.horario)}`,
+        `📍 Local: ${v(input.local)}`,
+        `🏙️ Cidade: ${v(input.cidade)}`,
+        `🏠 Endereço: ${v(input.endereco)}`,
+        `👥 Participantes: ${v(input.participantes)} (${v(input.faixa_etaria)})`,
+        `✨ Preferências: ${v(input.preferencias)}`,
+      ];
+    } else if (nome === 'registrar_empresa') {
+      titulo = '🏢 *Lead empresa / evento — Keyo*';
+      tipoMemoria = 'whatsapp_empresa';
+      campos = [
+        `🏢 Empresa: ${v(input.empresa)}`,
+        `👤 Responsável: ${v(input.responsavel || sessao.nome)} — ${v(input.cargo)}`,
+        `📅 Data prevista: ${v(input.data_prevista)}`,
+        `👥 Pessoas: ${v(input.qtd_pessoas)}`,
+        `📍 Cidade/local: ${v(input.cidade)}`,
+        `🎯 Objetivo: ${v(input.objetivo)}`,
+        `✉️ E-mail: ${v(input.email)}`,
+        `📞 Telefone: ${v(input.telefone_contato)}`,
+      ];
+    } else {
+      titulo = '🤝 *Parceria / imprensa — Keyo*';
+      tipoMemoria = 'whatsapp_parceria';
+      campos = [
+        `👤 Nome: ${v(input.nome || sessao.nome)}`,
+        `🏢 Empresa/veículo: ${v(input.empresa_veiculo)}`,
+        `📝 Assunto: ${v(input.assunto)}`,
+        `✉️ E-mail: ${v(input.email)}`,
+        `📞 Telefone: ${v(input.telefone_contato)}`,
+      ];
+    }
+
+    const linhas = [titulo, '', ...campos,
+      `📱 WhatsApp da conversa: ${sessao.telefone}`,
+      `🕒 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`];
+    if (sessao.lgpdStatus === 'aceito' && sessao.historico?.length) {
+      linhas.push('', '💬 *Últimas mensagens:*');
+      for (const m of sessao.historico.slice(-6)) {
+        const quem = m.role === 'user' ? 'Cliente' : 'Keyo';
+        const txt  = typeof m.content === 'string' ? m.content
+          : (m.content || []).map(c => c.text || '').join(' ');
+        if (txt && txt.trim()) linhas.push(`• _${quem}:_ ${txt.trim().slice(0, 160)}`);
+      }
+    }
+
+    const okAtendimento = await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
+    sessao[chave] = true;
+
+    // Relatorio diario (a prova de falha)
+    try {
+      _relGarantirDia();
+      _rel.escalados++;
+      if (nome !== 'registrar_parceria') {
+        _rel.leads.push({
+          responsavel: input.responsavel || sessao.nome || '',
+          empresa_evento: nome === 'registrar_empresa' ? (input.empresa || 'empresa') : `Aniversário ${input.aniversariante || ''}`.trim(),
+          qtd_pessoas: input.qtd_pessoas || input.participantes || '',
+          telefone: sessao.telefone, telefone_contato: input.telefone_contato || ''
+        });
+      }
+    } catch (e) { /* ignora */ }
+
+    await supabase.salvarMemoria(tipoMemoria, sessao.telefone, {
+      ...input, telefone: sessao.telefone, criadoEm: new Date().toISOString()
+    }).catch(() => {});
+
+    let questionarioEnviado = false;
+    if (nome === 'registrar_empresa') {
+      const pdf = _lerQuestionario();
+      if (pdf) {
+        questionarioEnviado = await enviarDocumento(sessao.telefone, pdf,
+          'Questionario_Briefing_ExitGames.pdf',
+          `📋 Questionário de Briefing — EXIT Games\nPreencha no computador e devolva por aqui ou para ${CFG.emailContato}.`);
+      }
+    }
+
+    console.info(`[KEYO] 📋 ${nome} → atendimento ${okAtendimento ? 'ok' : 'falhou'}${nome === 'registrar_empresa' ? ` · questionário ${questionarioEnviado ? 'enviado' : 'NÃO enviado'}` : ''}`);
+    return JSON.stringify({
+      ok: true,
+      enviadoAoAtendimento: okAtendimento,
+      ...(nome === 'registrar_empresa' ? { questionarioEnviado, emailContato: CFG.emailContato } : {})
+    });
+  }
+
   // ── escalar_humano ────────────────────────────────────────────────────────
   if (nome === 'escalar_humano') {
     // Se ja esta escalado, nao avisa o atendente de novo (evita spam).
@@ -804,6 +984,17 @@ async function _pensarEResponder(mensagemUsuario, sessao) {
 }
 
 // ── Apresentacao e captura do nome ───────────────────────────────────────────
+// Menu de setores (20/11/2026) — enviado logo apos o aceite LGPD
+const _MSG_MENU = `Sobre o que você quer falar? Responda com o número:
+
+1️⃣ Salas, preços e horários
+2️⃣ Aniversários e festas (Detetive Júnior)
+3️⃣ Empresas e eventos corporativos
+4️⃣ Parcerias e imprensa
+0️⃣ Falar com a equipe
+
+Ou, se preferir, é só me contar o que precisa. 😊`;
+
 const _MSG_APRESENTACAO = `Olá! 👋 Sou o *Keyo*, atendente virtual da *EXIT Games*.
 
 Qual é o seu nome? 😊`;
@@ -921,7 +1112,7 @@ async function _registrarAceite(tel, sessao, texto) {
   console.info(`[KEYO] ✅ Consentimento LGPD registrado: ${tel}`);
   const quem = sessao.nome ? `, ${sessao.nome}` : '';
   await enviarMensagem(tel,
-    `✅ Prontinho${quem}! Consentimento registrado. 😊\n\nComo posso te ajudar? Quer agendar, tirar dúvidas ou conhecer as salas?`);
+    `✅ Prontinho${quem}! Consentimento registrado. 😊\n\n${_MSG_MENU}`);
 }
 
 // Recusa: escala para humano e NAO grava conteudo da conversa — o cliente
@@ -1261,6 +1452,111 @@ async function enviarMensagem(tel, texto) {
   }
 }
 
+// ── Envio de documento (PDF) via Evolution API — 20/11/2026 ──────────────────
+// Testado na instancia real: sendMedia com base64 puro (sem prefixo data:).
+async function enviarDocumento(tel, base64, fileName, caption, mimetype = 'application/pdf') {
+  if (!CFG.evolutionUrl || CFG.evolutionUrl.includes('SEU-SERVIDOR')) {
+    console.log(`[KEYO] [MOCK] → ${tel}: [documento ${fileName}] ${String(caption || '').slice(0, 60)}`);
+    return true;
+  }
+  try {
+    const numero = tel.includes('@') ? tel : `${tel}@s.whatsapp.net`;
+    const resp = await fetch(`${CFG.evolutionUrl}/message/sendMedia/${CFG.instanceName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CFG.evolutionKey },
+      body: JSON.stringify({ number: numero, mediatype: 'document', mimetype,
+                             media: base64, fileName, caption: caption || '' })
+    });
+    if (!resp.ok) {
+      console.error('[KEYO] Erro Evolution API (documento):', await resp.text());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[KEYO] Erro de rede ao enviar documento:', e.message);
+    return false;
+  }
+}
+
+// Baixa o arquivo de uma mensagem recebida (o webhook nao traz o conteudo).
+// Testado na instancia real: retorna { base64, mimetype, fileName }.
+async function baixarMidia(messageId) {
+  try {
+    if (!CFG.evolutionUrl || !messageId) return null;
+    const resp = await fetch(`${CFG.evolutionUrl}/chat/getBase64FromMediaMessage/${CFG.instanceName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CFG.evolutionKey },
+      body: JSON.stringify({ message: { key: { id: messageId } }, convertToMp4: false })
+    });
+    if (!resp.ok) {
+      console.error('[KEYO] Erro ao baixar mídia:', await resp.text());
+      return null;
+    }
+    const j = await resp.json();
+    return j && j.base64 ? j : null;
+  } catch (e) {
+    console.error('[KEYO] Erro de rede ao baixar mídia:', e.message);
+    return null;
+  }
+}
+
+let _questionarioB64 = null;
+function _lerQuestionario() {
+  if (_questionarioB64) return _questionarioB64;
+  try {
+    _questionarioB64 = require('fs').readFileSync(CFG.arquivoQuestionario).toString('base64');
+  } catch (e) {
+    console.error('[KEYO] Questionário PDF não encontrado:', e.message);
+    _questionarioB64 = null;
+  }
+  return _questionarioB64;
+}
+
+// ── Documento recebido do cliente (ex.: questionario preenchido) — 20/11/2026 ─
+// Repassa o arquivo ao atendimento junto com os dados da conversa e confirma
+// ao cliente. Nunca lanca erro para cima.
+async function processarDocumento(tel, dados) {
+  try {
+    if (String(tel).replace(/\D/g, '') === CFG.telAtendenteJid) return;
+    const sessao  = _sessoes[tel];
+    const msg     = dados?.message || {};
+    const doc     = msg.documentMessage || msg.documentWithCaptionMessage?.message?.documentMessage || {};
+    const nomeArq = doc.fileName || 'documento-cliente.pdf';
+    const legenda = doc.caption || '';
+    const midia   = await baixarMidia(dados?.key?.id);
+
+    const linhas = [
+      '📎 *Documento recebido — Keyo*',
+      '',
+      `👤 Cliente: ${sessao?.nome || dados?.pushName || '(nome não informado)'}`,
+      `📱 WhatsApp: ${tel}`,
+      `📄 Arquivo: ${nomeArq}`,
+    ];
+    if (legenda) linhas.push(`💬 Legenda: ${legenda.slice(0, 200)}`);
+    if (sessao?.lgpdStatus === 'aceito' && sessao.historico?.length) {
+      linhas.push('', '💬 *Últimas mensagens:*');
+      for (const m of sessao.historico.slice(-6)) {
+        const quem = m.role === 'user' ? 'Cliente' : 'Keyo';
+        const txt  = typeof m.content === 'string' ? m.content
+          : (m.content || []).map(c => c.text || '').join(' ');
+        if (txt && txt.trim()) linhas.push(`• _${quem}:_ ${txt.trim().slice(0, 160)}`);
+      }
+    }
+    if (!midia) linhas.push('', '⚠️ Não consegui baixar o arquivo: abra a conversa no WhatsApp do Keyo.');
+
+    await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
+    if (midia) {
+      await enviarDocumento(CFG.telAtendenteJid, midia.base64, midia.fileName || nomeArq,
+        `Arquivo enviado por ${sessao?.nome || tel}`, midia.mimetype || doc.mimetype || 'application/pdf');
+    }
+    await enviarMensagem(tel,
+      `Recebi seu arquivo! 📎 Já encaminhei para a nossa equipe, que vai analisar e entrar em contato. Se preferir, também pode enviar para ${CFG.emailContato}. 😊`);
+    console.info(`[KEYO] 📎 Documento de ${tel} repassado ao atendimento (${midia ? 'com arquivo' : 'sem arquivo'})`);
+  } catch (e) {
+    console.error('[KEYO] Falha ao processar documento (ignorada):', e.message);
+  }
+}
+
 // ── Envio de confirmação de reserva ──────────────────────────────────────────
 async function enviarConfirmacaoReserva(venda, sala, unidade) {
   if (!venda?.telefoneReserva) return false;
@@ -1407,6 +1703,7 @@ function statusSessoes() {
 // ── Exports ───────────────────────────────────────────────────────────────────
 const bot = {
   processarMensagem,
+  processarDocumento,
   processarPagamento,
   enviarMensagem,
   enviarConfirmacaoReserva,

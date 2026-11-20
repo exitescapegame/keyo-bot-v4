@@ -62,6 +62,20 @@ const server = http.createServer(async (req, res) => {
                          msg.buttonsResponseMessage?.selectedButtonId || 
                          msg.listResponseMessage?.singleSelectReply?.selectedRowId || '';
 
+        // [20/11/2026] Documento do cliente (ex.: questionario preenchido):
+        // repassa ao atendimento. Aditivo: texto continua no fluxo de sempre.
+        const ehDocumento = !!(msg.documentMessage || msg.documentWithCaptionMessage);
+        if (remoteJid && ehDocumento && !userText.trim()) {
+          const telDoc = remoteJid.split('@')[0];
+          console.log(`📎 [${telDoc}] documento recebido`);
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true }));
+          if (typeof bot.processarDocumento === 'function') {
+            bot.processarDocumento(telDoc, event.data).catch(e => console.error('❌ [DOC]', e.message));
+          }
+          return;
+        }
+
         if (!remoteJid || !userText.trim()) {
           console.log('⏭️  [SKIP] remoteJid vazio ou mensagem vazia');
           res.writeHead(200);
