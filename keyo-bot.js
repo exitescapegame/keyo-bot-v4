@@ -51,6 +51,10 @@ const CFG = {
   telAtendente: '+55 79 98852-1010',
   // E-mail oficial (20/11/2026): pode ser passado aos clientes, inclusive empresas
   emailContato: 'contato@exitgamesbrasil.com.br',
+  // E-mail dos relatorios via Resend (API HTTPS: o Railway Hobby bloqueia SMTP).
+  // Sem RESEND_API_KEY no Railway, o envio por e-mail fica desligado e nada muda.
+  resendKey:   process.env.RESEND_API_KEY,
+  emailRelatorios: process.env.EMAIL_RELATORIOS || 'contato@exitgamesbrasil.com.br',
   // Questionario de briefing para empresas (PDF preenchivel, vai junto no repo)
   arquivoQuestionario: require('path').join(__dirname, 'assets', 'Questionario_Briefing_ExitGames.pdf'),
 };
@@ -137,7 +141,9 @@ async function _relVerificarEnvio() {
     if (hm < '22:10' || hm > '22:40' || _rel.enviadoEm === hoje) return;
     if (!CFG.telAtendenteJid) return;
     _rel.enviadoEm = hoje;
-    const ok = await enviarMensagem(CFG.telAtendenteJid, _relMontarTexto());
+    const textoRel = _relMontarTexto();
+    const ok = await enviarMensagem(CFG.telAtendenteJid, textoRel);
+    enviarEmailRelatorio(`Keyo — resumo do dia ${hoje}`, textoRel).catch(() => {});
     console.info(`[KEYO] 📊 Relatório diário enviado ao atendente: ${ok ? 'ok' : 'falhou'}`);
   } catch (e) {
     console.error('[KEYO] Falha no relatório diário (ignorada):', e.message);
@@ -787,6 +793,9 @@ async function _executarFerramenta(nome, input, sessao) {
 
     const okAtendimento = await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
     sessao[chave] = true;
+    enviarEmailRelatorio(
+      `${titulo.replace(/[*]/g, '').replace(/ — Keyo$/, '')} — ${input.empresa || input.aniversariante || input.nome || sessao.nome || sessao.telefone}`,
+      linhas.join('\n')).catch(() => {});
 
     // Relatorio diario (a prova de falha)
     try {
@@ -1081,6 +1090,8 @@ async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, hist
 
     const ok = await enviarMensagem(CFG.telAtendenteJid, linhas.join('\n'));
     console.info(`[KEYO] 🔔 Atendente avisado sobre ${telCliente}: ${ok ? 'ok' : 'falhou'}`);
+    enviarEmailRelatorio(`${lead ? 'Lead de evento' : 'Encaminhamento'} — Keyo — ${nomeCliente || telCliente}`,
+      linhas.join('\n')).catch(() => {});
     return ok;
   } catch (e) {
     console.error('[KEYO] Falha ao avisar atendente (ignorada):', e.message);
@@ -1452,6 +1463,42 @@ async function enviarMensagem(tel, texto) {
   }
 }
 
+// ── Copia dos relatorios por e-mail (Resend) — 20/11/2026 ────────────────────
+// Aditivo: sem chave configurada, nao faz nada. Falha nunca afeta o WhatsApp.
+async function enviarEmailRelatorio(assunto, textoWhats, anexo) {
+  try {
+    if (!CFG.resendKey) return false;
+    const texto = String(textoWhats).replace(/\*/g, '').replace(/_/g, '');
+    const html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">'
+      + texto.split('\n').map(l => l.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('<br>')
+      + '</div>';
+    const corpo = {
+      from: 'Keyo EXIT Games <onboarding@resend.dev>',
+      to: [CFG.emailRelatorios],
+      subject: assunto,
+      text: texto,
+      html
+    };
+    if (anexo && anexo.base64) {
+      corpo.attachments = [{ filename: anexo.fileName || 'arquivo.pdf', content: anexo.base64 }];
+    }
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.resendKey}` },
+      body: JSON.stringify(corpo)
+    });
+    if (!resp.ok) {
+      console.error('[KEYO] Erro ao enviar e-mail:', await resp.text());
+      return false;
+    }
+    console.info(`[KEYO] ✉️  E-mail enviado: ${assunto}`);
+    return true;
+  } catch (e) {
+    console.error('[KEYO] Falha no e-mail (ignorada):', e.message);
+    return false;
+  }
+}
+
 // ── Envio de documento (PDF) via Evolution API — 20/11/2026 ──────────────────
 // Testado na instancia real: sendMedia com base64 puro (sem prefixo data:).
 async function enviarDocumento(tel, base64, fileName, caption, mimetype = 'application/pdf') {
@@ -1549,6 +1596,8 @@ async function processarDocumento(tel, dados) {
       await enviarDocumento(CFG.telAtendenteJid, midia.base64, midia.fileName || nomeArq,
         `Arquivo enviado por ${sessao?.nome || tel}`, midia.mimetype || doc.mimetype || 'application/pdf');
     }
+    enviarEmailRelatorio(`Documento recebido pelo Keyo — ${sessao?.nome || dados?.pushName || tel}`,
+      linhas.join('\n'), midia ? { base64: midia.base64, fileName: midia.fileName || nomeArq } : null).catch(() => {});
     await enviarMensagem(tel,
       `Recebi seu arquivo! 📎 Já encaminhei para a nossa equipe, que vai analisar e entrar em contato. Se preferir, também pode enviar para ${CFG.emailContato}. 😊`);
     console.info(`[KEYO] 📎 Documento de ${tel} repassado ao atendimento (${midia ? 'com arquivo' : 'sem arquivo'})`);
