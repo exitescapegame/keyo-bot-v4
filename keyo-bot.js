@@ -432,7 +432,7 @@ PRIMEIRO apresente, de forma curta e animada, o pacote pronto *Experiência Dete
 - Valor: *a partir de R$ 5.000,00*, para Aracaju e Salvador. Para outras cidades, diga que a equipe avalia e passa as condições.
 NUNCA conte os desafios, as pistas, os mecanismos, os momentos-surpresa em detalhe nem como a história termina — é surpresa. NUNCA fale de coroa, certificados ou medalhas, nem descreva o final. NUNCA confirme data, disponibilidade ou condições de pagamento — isso é com a equipe.
 DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "aniversario") se ele ainda não aceitou. Com o aceite, colete, uma pergunta por vez: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados; 5) alguma preferência ou observação — opcional.
-Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉
+Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉 Se a ferramenta devolver questionarioEnviado = true, diga também que mandou o *Questionário da Festa* para preencher no computador e devolver por aqui ou para ${CFG.emailContato}.
 
 🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
 Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários. Vale também para o primeiro contato de escolas (no lugar de empresa, pergunte o nome da escola) e de feiras, prefeituras e órgãos públicos (pergunte o órgão ou o evento).
@@ -959,20 +959,31 @@ async function _executarFerramenta(nome, input, sessao) {
     }).catch(() => {});
 
     let questionarioEnviado = false;
-    if (nome === 'registrar_empresa') {
+    const setorQ = sessao.questionarioSetor;   // definido no primeiro contato pelo Escritorio
+    if (nome === 'registrar_empresa' && _QUESTIONARIOS[setorQ]) {
+      const q = _QUESTIONARIOS[setorQ], pdf = _lerQuestionarioSetor(setorQ);
+      if (pdf) questionarioEnviado = await enviarDocumento(sessao.telefone, pdf, q.arq,
+        `📋 ${q.titulo} — EXIT Games\nPreencha no computador e devolva por aqui ou para ${CFG.emailContato}.`);
+    } else if (nome === 'registrar_empresa') {
       const pdf = _lerQuestionario();
       if (pdf) {
         questionarioEnviado = await enviarDocumento(sessao.telefone, pdf,
           'Questionario_Briefing_ExitGames.pdf',
           `📋 Questionário de Briefing — EXIT Games\nPreencha no computador e devolva por aqui ou para ${CFG.emailContato}.`);
       }
+    } else if (nome === 'registrar_aniversario' && setorQ === 'aniversario') {
+      // So no primeiro contato pelo Escritorio; pelas Lojas a festa segue como antes
+      const q = _QUESTIONARIOS.aniversario, pdf = _lerQuestionarioSetor('aniversario');
+      if (pdf) questionarioEnviado = await enviarDocumento(sessao.telefone, pdf, q.arq,
+        `📋 ${q.titulo} — EXIT Games\nPreencha no computador e devolva por aqui ou para ${CFG.emailContato}.`);
     }
+    sessao.questionarioSetor = null;
 
     console.info(`[KEYO] 📋 ${nome} → atendimento ${okAtendimento ? 'ok' : 'falhou'}${nome === 'registrar_empresa' ? ` · questionário ${questionarioEnviado ? 'enviado' : 'NÃO enviado'}` : ''}`);
     return JSON.stringify({
       ok: true,
       enviadoAoAtendimento: okAtendimento,
-      ...(nome === 'registrar_empresa' ? { questionarioEnviado, emailContato: CFG.emailContato } : {})
+      ...((nome === 'registrar_empresa' || questionarioEnviado) ? { questionarioEnviado, emailContato: CFG.emailContato } : {})
     });
   }
 
@@ -1705,6 +1716,7 @@ async function processarMensagem(tel, texto) {
     if (primeiro) {
       // Primeiro contato: segue a conversa e o questionario de sempre do setor
       sessao.menuNivel = null; sessao.ramalPendente = null;
+      sessao.questionarioSetor = setor;
       texto = {
         empresa:        'É meu primeiro contato. Quero falar com o comercial sobre um evento para a minha empresa.',
         evento_publico: 'É meu primeiro contato. Quero falar sobre uma feira ou evento público (prefeitura/órgão público).',
@@ -1955,6 +1967,25 @@ async function baixarMidia(messageId) {
 }
 
 let _questionarioB64 = null;
+// [20/11/2026] Questionarios por setor (primeiro contato pelo Escritorio)
+const _QUESTIONARIOS = {
+  escola:         { arq: 'Questionario_Escolas_ExitGames.pdf',     titulo: 'Questionário para Escolas' },
+  evento_publico: { arq: 'Questionario_Eventos_ExitGames.pdf',     titulo: 'Questionário para Eventos' },
+  aniversario:    { arq: 'Questionario_Aniversarios_ExitGames.pdf', titulo: 'Questionário da Festa' },
+};
+const _questB64 = {};
+function _lerQuestionarioSetor(setor) {
+  const q = _QUESTIONARIOS[setor];
+  if (!q) return null;
+  if (_questB64[setor] !== undefined) return _questB64[setor];
+  try {
+    _questB64[setor] = require('fs').readFileSync(require('path').join(__dirname, 'assets', q.arq)).toString('base64');
+  } catch (e) {
+    console.error('[KEYO] Questionário não encontrado:', q.arq, e.message);
+    _questB64[setor] = null;
+  }
+  return _questB64[setor];
+}
 function _lerQuestionario() {
   if (_questionarioB64) return _questionarioB64;
   try {
