@@ -112,6 +112,7 @@ const _COORDENADORES = {
   parceria:       { nome: 'Júlia',   ela: true,  cargo: 'nossa coordenadora de marketing', setor: 'Parcerias' },
   aniversario:    { nome: 'Nina',    ela: true,  cargo: 'nossa coordenadora de festas', setor: 'Aniversários e festas' },
 };
+const _RE_COORDENADOR = /\b(eduarda|davi|clara|j[uú]lia|nina|coordenador|coordenadora)\b/i;
 // Expediente dos coordenadores: segunda a sexta, 8h as 18h (Bahia)
 function _emExpediente(d = new Date()) {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia',
@@ -386,7 +387,8 @@ NUNCA liste os três juntos. Só fale de um desconto se o cliente perguntar espe
 2️⃣ Aniversários e festas → atendimento de festas.
 3️⃣ Empresas e eventos corporativos → atendimento corporativo.
 4️⃣ Parcerias e imprensa → atendimento de parcerias.
-0️⃣ Falar com a equipe → chame *escalar_humano*.
+0️⃣ Falar com a equipe → chame *escalar_humano*. Sempre que o cliente pedir para falar com uma pessoa (opção 0, "quero falar com alguém", "falar com o comercial"...), informe *setor* conforme o assunto da conversa ('geral' se não estiver claro) e responda seguindo a *instrucaoResposta* que a ferramenta devolver.
+👤 CLIENTE PERGUNTA POR UM COORDENADOR (ex.: "quero falar com a Eduarda", "a Clara está?", "o Davi me mandou e-mail") → NÃO peça dados nem aceite e NÃO mande menu: chame *escalar_humano* na hora, com o *setor* do coordenador — Eduarda → 'empresa'; Clara → 'escola'; Davi → 'evento_publico'; Júlia → 'parceria'; Nina → 'aniversario' — e responda seguindo a *instrucaoResposta*. Não diga nada sobre quem é ou não é virtual, nem dê detalhes da rotina do coordenador.
 Se o cliente responder só com o número, siga o setor correspondente. Se ele escrever outra coisa, entenda o assunto e siga normalmente — NUNCA obrigue a escolher número.
 Em qualquer setor: UMA pergunta por mensagem, esperando a resposta antes da próxima. NUNCA mande a lista de perguntas toda de uma vez. Se o cliente já respondeu algo espontaneamente, não pergunte de novo. Se ele não souber ou não quiser responder um item, siga em frente.
 
@@ -410,16 +412,16 @@ PRIMEIRO apresente, de forma curta e animada, o pacote pronto *Experiência Dete
 - Valor: *a partir de R$ 5.000,00*, para Aracaju e Salvador. Para outras cidades, diga que a equipe avalia e passa as condições.
 NUNCA conte os desafios, as pistas, os mecanismos, os momentos-surpresa em detalhe nem como a história termina — é surpresa. NUNCA fale de coroa, certificados ou medalhas, nem descreva o final. NUNCA confirme data, disponibilidade ou condições de pagamento — isso é com a equipe.
 DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "aniversario") se ele ainda não aceitou. Com o aceite, colete, uma pergunta por vez: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados; 5) alguma preferência ou observação — opcional.
-Ao ter os dados, chame *registrar_aniversario* (uma vez), diga com carinho que anotou tudo e siga a *instrucaoResposta* que a ferramenta devolver (chamar a coordenadora de festas). 🎉
+Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉
 
 🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
 Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários.
 Antes de coletar qualquer dado, se o cliente ainda não aceitou, chame *pedir_aceite* (setor "empresa"). Depois CONVERSE: 1) nome da empresa; 2) nome e cargo de quem está falando; 3) data prevista; 4) quantas pessoas; 5) cidade/local; 6) o que a empresa quer com o evento (integração, treinamento, confraternização...). E-mail de contato, se ele quiser passar.
 NUNCA fale preço nem prometa formato — cada vivência é desenhada sob medida pela equipe.
-Ao ter os dados, chame *registrar_empresa* (uma vez), com *area* = 'escola' se for escola, rede ou secretaria de educação, 'evento_publico' se for prefeitura, secretaria, governo, feira ou organizador de evento público, e 'empresa' nos demais casos. Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique em poucas palavras: o questionário ajuda a desenhar a experiência para a realidade deles; deve ser preenchido no computador; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}. Em seguida siga a *instrucaoResposta* que a ferramenta devolver (chamar o coordenador). Se o envio do PDF falhar, diga que o coordenador vai enviar o questionário.
+Ao ter os dados, chame *registrar_empresa* (uma vez). Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique: o questionário ajuda a equipe a desenhar a experiência para a realidade da empresa; deve ser preenchido no computador por alguém do RH ou da liderança; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}; e a equipe entra em contato. Se o envio do PDF falhar, diga que a equipe vai enviar o questionário.
 
 🤝 SETOR 4 — PARCERIAS E IMPRENSA
-Se o cliente ainda não aceitou, chame *pedir_aceite* (setor "parceria") antes de coletar. Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e siga a *instrucaoResposta* que a ferramenta devolver (chamar a coordenadora). Pode informar o e-mail ${CFG.emailContato}.
+Se o cliente ainda não aceitou, chame *pedir_aceite* (setor "parceria") antes de coletar. Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e diga que a equipe vai retornar. Pode informar o e-mail ${CFG.emailContato}.
 
 Se o cliente mandar um arquivo (ex.: o questionário preenchido), o sistema já repassa para a equipe automaticamente.
 
@@ -534,7 +536,8 @@ const _TOOLS = [
         qtd_pessoas:      { type: 'string', description: 'Só para evento: quantidade de pessoas informada' },
         cidade:           { type: 'string', description: 'Só para evento: cidade/local do evento' },
         responsavel:      { type: 'string', description: 'Só para evento: nome do responsável' },
-        telefone_contato: { type: 'string', description: 'Só para evento: telefone de contato informado' }
+        telefone_contato: { type: 'string', description: 'Só para evento: telefone de contato informado' },
+        setor:            { type: 'string', enum: ['empresa', 'escola', 'evento_publico', 'parceria', 'aniversario', 'geral'], description: "Quando o cliente pede para FALAR COM ALGUÉM: setor do assunto. 'empresa' (empresas/corporativo), 'escola' (escolas e educação), 'evento_publico' (prefeituras, governos, feiras), 'parceria' (marcas, imprensa, influenciadores), 'aniversario' (festas e aniversários), 'geral' se não estiver claro ou for outro assunto" }
       },
       required: ['motivo']
     }
@@ -586,8 +589,7 @@ const _TOOLS = [
         cidade:           { type: 'string', description: 'Cidade/local do evento' },
         objetivo:         { type: 'string', description: 'O que a empresa quer com o evento (integração, treinamento, confraternização...)' },
         email:            { type: 'string', description: 'E-mail de contato, se o cliente informou' },
-        telefone_contato: { type: 'string', description: 'Telefone de contato, se diferente do WhatsApp' },
-        area:             { type: 'string', enum: ['empresa', 'escola', 'evento_publico'], description: "'escola' para escola, rede ou secretaria de educação; 'evento_publico' para prefeitura, secretaria, governo, feira ou organizador de evento público; 'empresa' para o resto" }
+        telefone_contato: { type: 'string', description: 'Telefone de contato, se diferente do WhatsApp' }
       },
       required: []
     }
@@ -897,23 +899,7 @@ async function _executarFerramenta(nome, input, sessao) {
       ];
     }
 
-    // [20/11/2026] Keyo chama o coordenador do setor; quem estiver com o
-    // celular do Keyo assume a conversa no lugar dele.
-    const chaveCoord = nome === 'registrar_aniversario' ? 'aniversario'
-      : nome === 'registrar_parceria' ? 'parceria'
-      : (_COORDENADORES[input.area] ? input.area : 'empresa');
-    const coord = _COORDENADORES[chaveCoord];
-    const noExpediente = _emExpediente();
-    const clienteNome = sessao.nome || 'cliente';
-    const aviso = [
-      `👉 *Cliente aguardando ${coord.ela ? 'a' : 'o'} ${coord.nome}* (${coord.setor})${noExpediente ? '' : ' — fora do expediente'}`,
-      'Quem estiver com o WhatsApp do Keyo (71 98457-3737) assume a conversa.',
-      `Sugestão: "Oi, ${clienteNome}! Aqui é ___, da Exit. ${coord.ela ? 'A' : 'O'} ${coord.nome} está em outra atividade agora, então eu sigo com você."`,
-      'Quando alguém responder pelo celular do Keyo, ele fica em silêncio nessa conversa.',
-      `Para devolver ao Keyo, mande aqui: *#keyo ${sessao.telefone}*`,
-      ''
-    ];
-    const linhas = [...aviso, titulo, '', ...campos,
+    const linhas = [titulo, '', ...campos,
       `📱 WhatsApp da conversa: ${sessao.telefone}`,
       `🕒 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`];
     if (sessao.lgpdStatus === 'aceito' && sessao.historico?.length) {
@@ -963,19 +949,9 @@ async function _executarFerramenta(nome, input, sessao) {
     }
 
     console.info(`[KEYO] 📋 ${nome} → atendimento ${okAtendimento ? 'ok' : 'falhou'}${nome === 'registrar_empresa' ? ` · questionário ${questionarioEnviado ? 'enviado' : 'NÃO enviado'}` : ''}`);
-    // Coordenador chamado: o bot segue so com duvidas simples ate alguem assumir
-    sessao.aguardaHumano = true;
-    sessao.aguardaHumanoDesde = Date.now();
-    sessao.coordenadorChamado = coord;
-    const artigo = coord.ela ? 'a' : 'o';
-    const instrucaoResposta = noExpediente
-      ? `Diga ao cliente, de forma curta e calorosa, que vai chamar ${artigo} ${coord.nome}, ${coord.cargo}, e que ${coord.ela ? 'ela' : 'ele'} já fala com ele por aqui. Não dê prazo exato e não faça novas perguntas.`
-      : `Diga ao cliente, de forma curta e calorosa, que ${artigo} ${coord.nome}, ${coord.cargo}, já encerrou o expediente de hoje e fala com ele por aqui no próximo dia útil, a partir das 8h. Não faça novas perguntas.`;
     return JSON.stringify({
       ok: true,
       enviadoAoAtendimento: okAtendimento,
-      coordenador: coord.nome,
-      instrucaoResposta,
       ...(nome === 'registrar_empresa' ? { questionarioEnviado, emailContato: CFG.emailContato } : {})
     });
   }
@@ -1020,13 +996,18 @@ async function _executarFerramenta(nome, input, sessao) {
       }
     } catch (e) { lead = null; }
 
+    // [20/11/2026] Cliente pediu para falar com alguém: o Keyo "chama" o
+    // coordenador do setor e quem estiver com o celular do Keyo assume.
+    const coord = _COORDENADORES[input.setor] || null;
+    if (coord) sessao.coordenadorChamado = coord;
     await _avisarAtendente({
       telCliente: sessao.telefone,
       nomeCliente: sessao.nome,
       motivo: input.motivo,
       urgente: input.urgente || false,
       historico: sessao.lgpdStatus === 'aceito' ? sessao.historico : null,
-      lead
+      lead,
+      coord
     });
 
     if (sessao.lgpdStatus === 'aceito') await supabase.registrarAuditoria(
@@ -1035,10 +1016,16 @@ async function _executarFerramenta(nome, input, sessao) {
       'KEYO-BOT'
     );
 
+    const noExpediente = _emExpediente();
+    const quem = coord ? `${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}` : 'alguém da nossa equipe';
+    const instrucaoResposta = noExpediente
+      ? `Diga ao cliente, de forma curta e calorosa, que vai chamar ${quem} para falar com ele por aqui. Não dê prazo exato.`
+      : `Diga ao cliente, de forma curta e calorosa, que vai chamar ${quem}; como já passou do horário comercial, o retorno é no próximo dia útil a partir das 8h, por aqui. Pode continuar tirando dúvidas simples.`;
     return JSON.stringify({
       escalado: true,
       mensagem: 'Atendente humano notificado.',
-      urgente: input.urgente || false
+      urgente: input.urgente || false,
+      instrucaoResposta
     });
   }
 
@@ -1215,7 +1202,7 @@ function _extrairNome(texto) {
 // ── Aviso ao atendente humano ────────────────────────────────────────────────
 // Additivo por design: qualquer falha aqui e engolida e registrada. O cliente
 // nunca percebe, e o fluxo principal nunca quebra por causa deste aviso.
-async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, historico, lead }) {
+async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, historico, lead, coord }) {
   try {
     if (!CFG.telAtendenteJid) return false;
     if (CFG.telAtendenteJid === String(telCliente).replace(/\D/g, '')) return false;
@@ -1238,6 +1225,20 @@ async function _avisarAtendente({ telCliente, nomeCliente, motivo, urgente, hist
       `📝 Motivo: ${motivo || 'não especificado'}`,
       `🕒 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,
     ];
+
+    // [20/11/2026] Como assumir pelo celular do Keyo
+    if (!lead) {
+      const nomeCli = nomeCliente || 'cliente';
+      const fala = coord
+        ? `${coord.ela ? 'A' : 'O'} ${coord.nome} está em outra atividade agora, então eu sigo com você.`
+        : 'Eu sigo com você a partir daqui.';
+      linhas.push('',
+        coord ? `👉 *Cliente aguardando ${coord.ela ? 'a' : 'o'} ${coord.nome}* (${coord.setor})` : '👉 *Cliente pediu para falar com a equipe*',
+        'Quem estiver com o WhatsApp do Keyo (71 98457-3737) assume a conversa.',
+        `Sugestão: "Oi, ${nomeCli}! Aqui é ___, da Exit. ${fala}"`,
+        'Quando alguém responder pelo celular do Keyo, ele fica em silêncio nessa conversa.',
+        `Para devolver ao Keyo, mande aqui: *#keyo ${telCliente}*`);
+    }
 
     // Historico so entra quando existe consentimento. Em recusa LGPD vem vazio.
     if (Array.isArray(historico) && historico.length) {
@@ -1497,6 +1498,9 @@ async function processarMensagem(tel, texto) {
   // Primeiro contato: apresenta e pergunta o nome
   if (sessao.nomeStatus === 'pendente') {
     sessao.nomeStatus = 'aguardando';
+    // [20/11/2026] Primeira mensagem ja perguntando por um coordenador: guarda
+    // para atender logo depois de pegar o nome.
+    if (_RE_COORDENADOR.test(String(texto))) sessao.pedidoInicial = String(texto).slice(0, 300);
     await enviarMensagem(tel, _MSG_APRESENTACAO);
     console.info(`[KEYO] 👋 Apresentação enviada para ${tel}`);
     return;
@@ -1516,6 +1520,14 @@ async function processarMensagem(tel, texto) {
     // [20/11/2026] Duvidas nao exigem aceite: vai direto ao menu. O aceite LGPD
     // so e pedido quando o cliente quer orcamento (festa, empresa, parceria).
     sessao.lgpdStatus = 'livre';
+    if (sessao.pedidoInicial) {
+      const pedido = sessao.pedidoInicial;
+      sessao.pedidoInicial = null;
+      const resp = await _pensarEResponder(`[Mensagem que o cliente mandou antes de dizer o nome:] ${pedido}`, sessao);
+      await enviarMensagem(tel, `Prazer, ${nome}! ${resp || ''}`.trim());
+      console.info(`[KEYO] 👤 ${tel} pediu um coordenador logo no início`);
+      return;
+    }
     await enviarMensagem(tel, `Prazer, ${nome}! ${_MSG_MENU}`);
     console.info(`[KEYO] 🧭 Menu enviado para ${tel} (sem aceite: só dúvidas)`);
     return;
