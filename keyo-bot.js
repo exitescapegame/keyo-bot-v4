@@ -141,6 +141,27 @@ function _emExpediente(d = new Date()) {
   if (_ehFeriadoEscritorio(Number(v('year')), Number(v('month')), Number(v('day')))) return false;
   return hora >= 8 && hora < 18;
 }
+// Nome do proximo dia de expediente ("segunda-feira", "amanhã"...), para o
+// cliente saber quando o escritorio retorna (21/11/2026).
+function _proximoDiaUtil(d = new Date()) {
+  const dias = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+  const partes = (x) => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia', year: 'numeric',
+      month: 'numeric', day: 'numeric', hour: 'numeric', hour12: false }).formatToParts(x);
+    const v = (t) => Number(p.find(y => y.type === t)?.value);
+    return { ano: v('year'), mes: v('month'), dia: v('day'), hora: v('hour') % 24 };
+  };
+  const hoje = partes(d);
+  let base = Date.UTC(hoje.ano, hoje.mes - 1, hoje.dia);
+  const util = (t) => { const x = new Date(t); const w = x.getUTCDay();
+    return w !== 0 && w !== 6 && !_ehFeriadoEscritorio(x.getUTCFullYear(), x.getUTCMonth() + 1, x.getUTCDate()); };
+  if (util(base) && hoje.hora < 8) return 'hoje';
+  for (let i = 1; i <= 10; i++) {
+    const t = base + i * 86400000;
+    if (util(t)) return i === 1 ? 'amanhã' : dias[new Date(t).getUTCDay()];
+  }
+  return 'próximo dia útil';
+}
 
 // ── Relatorio diario ao atendente (20/11/2026) ───────────────────────────────
 // Aditivo: so conta em memoria e manda um resumo por dia as 22h10 (Bahia).
@@ -430,9 +451,10 @@ PRIMEIRO apresente, de forma curta e animada, o pacote pronto *Experiência Dete
 - Inclui: mestre que conduz a experiência, narrativa, maletas de investigação, materiais e cenografia da missão, cadernetas, pulseiras, espaço de fotos temático "Procurado", mural de investigação, efeitos sonoros e etapa final interativa.
 - A missão dura até cerca de 75 minutos (a duração total da festa a equipe confirma).
 - Valor: *a partir de R$ 5.000,00*, para Aracaju e Salvador. Para outras cidades, diga que a equipe avalia e passa as condições.
+- ESPAÇO: a unidade Salvador Norte Shopping NÃO tem espaço dedicado para festas e eventos; lá a festa é em outro local (salão, casa, condomínio...). Se perguntarem por festa na loja ou por espaço próprio, diga isso com gentileza e conte que estamos em negociação com o Barra Shopping, com previsão para 01/01/2027 — sempre como previsão, nunca como data confirmada, e sem aceitar reserva para lá.
 NUNCA conte os desafios, as pistas, os mecanismos, os momentos-surpresa em detalhe nem como a história termina — é surpresa. NUNCA fale de coroa, certificados ou medalhas, nem descreva o final. NUNCA confirme data, disponibilidade ou condições de pagamento — isso é com a equipe.
-DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "aniversario") se ele ainda não aceitou. Com o aceite, colete, uma pergunta por vez: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados; 5) alguma preferência ou observação — opcional.
-Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉 Se a ferramenta devolver questionarioEnviado = true, diga também que mandou o *Questionário da Festa* para preencher no computador e devolver por aqui ou para ${CFG.emailContato}.
+DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "aniversario") se ele ainda não aceitou. Com o aceite, colete, uma pergunta por vez: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — cidade e local (salão, casa, condomínio...) com endereço; em Salvador não ofereça a loja, porque ela não tem espaço para festas; 4) quantos participantes e a faixa etária dos convidados; 5) alguma preferência ou observação — opcional.
+Ao ter os dados, chame *registrar_aniversario* (uma vez) e responda seguindo a *instrucaoResposta* que a ferramenta devolver (ela diz se o escritório está aberto e quando retornamos), com carinho e em poucas linhas. 🎉 Se a ferramenta devolver questionarioEnviado = true, diga também que mandou o *Questionário da Festa* para preencher no computador e devolver por aqui ou para ${CFG.emailContato}.
 
 🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
 Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários. Vale também para o primeiro contato de escolas (no lugar de empresa, pergunte o nome da escola) e de feiras, prefeituras e órgãos públicos (pergunte o órgão ou o evento).
@@ -585,7 +607,7 @@ const _TOOLS = [
         idade:         { type: 'string', description: 'Idade que o aniversariante vai fazer' },
         data:          { type: 'string', description: 'Data da festa, como o cliente informou' },
         horario:       { type: 'string', description: 'Horário desejado' },
-        local:         { type: 'string', description: 'Na loja da EXIT ou outro local (salão, casa, condomínio...)' },
+        local:         { type: 'string', description: 'Local da festa (salão, casa, condomínio...). A loja de Salvador não tem espaço para festas.' },
         cidade:        { type: 'string' },
         endereco:      { type: 'string', description: 'Endereço, se a festa não for na loja da EXIT' },
         participantes: { type: 'string', description: 'Quantidade de participantes' },
@@ -980,9 +1002,17 @@ async function _executarFerramenta(nome, input, sessao) {
     sessao.questionarioSetor = null;
 
     console.info(`[KEYO] 📋 ${nome} → atendimento ${okAtendimento ? 'ok' : 'falhou'}${nome === 'registrar_empresa' ? ` · questionário ${questionarioEnviado ? 'enviado' : 'NÃO enviado'}` : ''}`);
+    let instrucaoResposta;
+    if (nome === 'registrar_aniversario') {
+      const dia = _proximoDiaUtil();
+      instrucaoResposta = _emExpediente()
+        ? 'Agradeça com carinho, confirme que anotou tudo e diga que a coordenadora de festas vai entrar em contato por aqui o mais breve possível para tirar as dúvidas e montar a festa. Não dê prazo exato.'
+        : `Agradeça com carinho e confirme que anotou tudo. Diga que o escritório funciona de segunda a sexta, das 8h às 18h, e que retornamos ${dia === 'amanhã' || dia === 'hoje' ? dia : 'na ' + dia}${dia === 'hoje' ? ' a partir das 8h' : ''}; a coordenadora de festas vai entrar em contato por aqui o mais breve possível. Não prometa horário exato.`;
+    }
     return JSON.stringify({
       ok: true,
       enviadoAoAtendimento: okAtendimento,
+      ...(instrucaoResposta ? { instrucaoResposta } : {}),
       ...((nome === 'registrar_empresa' || questionarioEnviado) ? { questionarioEnviado, emailContato: CFG.emailContato } : {})
     });
   }
