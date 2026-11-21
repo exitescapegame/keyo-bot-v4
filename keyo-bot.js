@@ -1170,6 +1170,28 @@ const _MSG_PRIMEIRO_CONTATO = `É o seu primeiro contato com a EXIT Games?
 *1* · Sim, é o primeiro contato
 *2* · Não, já estou em contato com a equipe (por e-mail, por exemplo)`;
 
+// Le a escolha do cliente: "1", "1.", "1️⃣", "opção 1", "um", ou a palavra do setor
+function _lerEscolha(texto, nivel) {
+  const bruto = String(texto || '');
+  let t = bruto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u20e3\ufe0f*_~.!,;:()\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  t = t.replace(/^(opcao|op|numero|n|nº|o|a|quero( a)?( o)?|escolho( a)?( o)?)\s+/, '').trim();
+  const porExtenso = { zero: '0', um: '1', uma: '1', dois: '2', duas: '2', tres: '3', quatro: '4', cinco: '5' };
+  if (/^\d$/.test(t)) return { escolha: t, soNumero: true };
+  if (porExtenso[t]) return { escolha: porExtenso[t], soNumero: true };
+  // Palavras curtas que equivalem a uma opcao do menu em que o cliente esta
+  if (t.split(' ').length <= 4) {
+    const mapa = {
+      principal:  [[/\blojas?\b|atendimento das lojas/, '1'], [/\bescritorio\b/, '2']],
+      lojas:      [[/\bsalas?\b|precos?|horarios?/, '1'], [/festa|anivers/, '2'], [/equipe|atendente|pessoa/, '0']],
+      escritorio: [[/comercial|empresa|corporativ/, '1'], [/\beventos?\b|feira|prefeitura|orgao/, '2'],
+                   [/pedagog|escola/, '3'], [/marketing|parceria|imprensa|marca/, '4'], [/festa|anivers/, '5']],
+    }[nivel] || [];
+    for (const [re, op] of mapa) if (re.test(t)) return { escolha: op, soNumero: true };
+  }
+  return { escolha: '', soNumero: false };
+}
+
 const _RAMAIS = { '1': 'empresa', '2': 'evento_publico', '3': 'escola', '4': 'parceria', '5': 'aniversario' };
 
 // Aceite pedido SO quando o cliente quer orcamento (festa, empresa, parceria)
@@ -1332,7 +1354,8 @@ async function _registrarAceite(tel, sessao, texto) {
 
   const quem = sessao.nome ? `, ${sessao.nome}` : '';
   await enviarMensagem(tel,
-    `✅ Prontinho${quem}! Consentimento registrado. 😊\n\n${_MSG_MENU}`);
+    `✅ Prontinho${quem}! Consentimento registrado. 😊\n\n${_MSG_MENU_PRINCIPAL}`);
+  sessao.menuNivel = 'principal';
 }
 
 // Recusa: escala para humano e NAO grava conteudo da conversa — o cliente
@@ -1628,17 +1651,21 @@ async function processarMensagem(tel, texto) {
 
   // [20/11/2026] Navegacao do menu (lojas / escritorio) feita pelo codigo:
   // sem IA, sem chance de confundir o numero de um nivel com o de outro.
-  const escolha = String(texto).trim().replace(/[^\d]/g, '');
-  const soNumero = /^\s*\*?\d\*?\s*$/.test(String(texto));
-  if (/^\s*menu\s*$/i.test(String(texto))) {
+  const { escolha, soNumero } = _lerEscolha(texto, sessao.menuNivel);
+  if (/^\s*(menu|voltar|in[ií]cio)\s*[.!]?\s*$/i.test(String(texto))) {
     sessao.menuNivel = 'principal';
     await enviarMensagem(tel, _MSG_MENU_PRINCIPAL);
     return;
   }
   if (sessao.menuNivel === 'contato' && sessao.ramalPendente) {
-    const t = String(texto).toLowerCase();
-    const jaTem = escolha === '2' || (!soNumero && /\bj[aá]\b|e-?mail|em contato|falando com|me (mandou|enviou|chamou)|recebi/.test(t));
-    const primeiro = escolha === '1' || (!soNumero && !jaTem && /primeir|n[aã]o|nunca|novo/.test(t));
+    const t = ' ' + String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' ';
+    const sinalPrimeiro = /ainda nao|nunca|primeira vez|e o primeiro|e meu primeiro|\bsim\b|\bprimeir|\bnovo\b/.test(t);
+    const sinalJa = /\bja\b|e-?mail|em contato|falando com|falei com|recebi|me (mandou|enviou|chamou|ligou|escreveu)|nao (e|eh) (o |meu )?primeiro|^\s*nao\b/.test(t);
+    let jaTem = false, primeiro = false;
+    if (escolha === '2') jaTem = true;
+    else if (escolha === '1') primeiro = true;
+    else if (sinalJa) jaTem = true;           // na duvida entre os dois, quem cita e-mail/contato ja tem contato
+    else if (sinalPrimeiro) primeiro = true;
     const setor = sessao.ramalPendente;
     const coord = _COORDENADORES[setor];
     if (jaTem) {
@@ -1666,9 +1693,13 @@ async function processarMensagem(tel, texto) {
         aniversario:    'É meu primeiro contato. Quero saber sobre aniversários e festas.'
       }[setor];
       console.info(`[KEYO] ☎️  ${tel} → ramal ${coord.setor} — primeiro contato (conversa do setor)`);
-    } else {
-      await enviarMensagem(tel, _MSG_PRIMEIRO_CONTATO);
+    } else if (!sessao.contatoRepetido) {
+      sessao.contatoRepetido = true;
+      await enviarMensagem(tel, `Só para eu te direcionar certinho: ${_MSG_PRIMEIRO_CONTATO.charAt(0).toLowerCase()}${_MSG_PRIMEIRO_CONTATO.slice(1)}`);
       return;
+    } else {
+      // Segunda resposta fora do esperado: nao prende o cliente na pergunta
+      sessao.menuNivel = null; sessao.ramalPendente = null; sessao.contatoRepetido = false;
     }
   } else if (sessao.menuNivel && soNumero) {
     const nivel = sessao.menuNivel;
@@ -1680,6 +1711,7 @@ async function processarMensagem(tel, texto) {
     if (nivel === 'escritorio' && _RAMAIS[escolha]) {
       sessao.menuNivel = 'contato';
       sessao.ramalPendente = _RAMAIS[escolha];
+      sessao.contatoRepetido = false;
       await enviarMensagem(tel, _MSG_PRIMEIRO_CONTATO);
       return;
     }
@@ -2108,6 +2140,16 @@ function mensagemPropria(remoteJid, idMsg, texto) {
     if (!num || num === CFG.telAtendenteJid) return 'ignorado';
     _limparEnvios();
     if (idMsg && _enviosBotId.has(String(idMsg))) return 'bot';
+    // "#keyo" digitado pela pessoa dentro da conversa do cliente: devolve ao Keyo
+    if (/^\s*#keyo\b/i.test(String(texto || ''))) {
+      const s0 = _sessoes[num];
+      if (s0) {
+        s0.humanoAtivo = false; s0.humanoUltimaMsg = null;
+        s0.aguardaHumano = false; s0.aguardaHumanoDesde = null; s0.coordenadorChamado = null;
+        console.info(`[KEYO] ↩️  ${num} devolvido ao Keyo (#keyo na própria conversa)`);
+      }
+      return 'comando';
+    }
     const chave = `${num}|${_normEnvio(texto)}`;
     if (_normEnvio(texto) && _enviosBotTexto.has(chave)) {
       _enviosBotTexto.delete(chave);
