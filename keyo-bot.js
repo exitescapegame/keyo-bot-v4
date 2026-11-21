@@ -40,6 +40,9 @@ const CFG = {
 
   // Comportamento
   timeoutHumanoMs: 10 * 60 * 1000,  // 10 min → escala para humano
+  // [20/11/2026] Pessoa assumiu pelo celular do Keyo: bot fica em silencio na
+  // conversa ate passar este tempo sem a pessoa escrever (ou ate "#keyo <tel>").
+  silencioHumanoMs: 12 * 60 * 60 * 1000,
   maxMsgPorMin:    15,               // 5 era facil demais de bater numa conversa normal
   maxTurnosAgente: 6,                // Máximo de ferramentas encadeadas por resposta
 
@@ -71,6 +74,52 @@ if (!CFG.evolutionUrl) console.error('[KEYO] ⚠️  EVOLUTION_URL não definida
 const _sessoes = {};
 const _rateLimit = {};
 const _rateLimitAviso = {};   // ultimo aviso de excesso por telefone
+
+// ── Pessoa assume pelo celular do Keyo (20/11/2026) ─────────────────────────
+// O WhatsApp avisa (fromMe) tanto o que o bot envia quanto o que uma pessoa
+// digita no celular/WhatsApp Web do Keyo. Para separar, o bot anota o que vai
+// enviar ANTES de enviar (texto) e o id que a Evolution devolve (depois).
+const _enviosBotTexto = new Map();  // "numero|texto" -> ts
+const _enviosBotId    = new Map();  // id da mensagem -> ts
+const _TTL_ENVIO_MS   = 10 * 60 * 1000;
+function _normEnvio(t) { return String(t || '').replace(/\s+/g, ' ').trim().slice(0, 500); }
+function _limparEnvios() {
+  const lim = Date.now() - _TTL_ENVIO_MS;
+  for (const [k, ts] of _enviosBotTexto) if (ts < lim) _enviosBotTexto.delete(k);
+  for (const [k, ts] of _enviosBotId)    if (ts < lim) _enviosBotId.delete(k);
+}
+function _marcarEnvioBot(numero, texto) {
+  try {
+    _limparEnvios();
+    const n = String(numero).replace(/\D/g, '');
+    const t = _normEnvio(texto);
+    if (n && t) _enviosBotTexto.set(`${n}|${t}`, Date.now());
+  } catch (e) { /* nunca atrapalha o envio */ }
+}
+async function _marcarIdBot(resp) {
+  try {
+    const j = await resp.clone().json();
+    const id = j?.key?.id || j?.data?.key?.id || j?.messageId;
+    if (id) _enviosBotId.set(String(id), Date.now());
+  } catch (e) { /* sem id: o texto anotado antes resolve */ }
+}
+
+// Coordenadores chamados pelo Keyo (regra da diretoria de 20/11/2026)
+const _COORDENADORES = {
+  empresa:        { nome: 'Eduarda', ela: true,  cargo: 'nossa coordenadora comercial',  setor: 'Empresas' },
+  escola:         { nome: 'Clara',   ela: true,  cargo: 'nossa coordenadora de escolas', setor: 'Escolas' },
+  evento_publico: { nome: 'Davi',    ela: false, cargo: 'nosso coordenador de eventos',  setor: 'Feiras e eventos' },
+  parceria:       { nome: 'Júlia',   ela: true,  cargo: 'nossa coordenadora de marketing', setor: 'Parcerias' },
+  aniversario:    { nome: 'Nina',    ela: true,  cargo: 'nossa coordenadora de festas', setor: 'Aniversários e festas' },
+};
+// Expediente dos coordenadores: segunda a sexta, 8h as 18h (Bahia)
+function _emExpediente(d = new Date()) {
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia',
+    weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(d);
+  const dia  = p.find(x => x.type === 'weekday')?.value;
+  const hora = Number(p.find(x => x.type === 'hour')?.value) % 24;
+  return !['Sat', 'Sun'].includes(dia) && hora >= 8 && hora < 18;
+}
 
 // ── Relatorio diario ao atendente (20/11/2026) ───────────────────────────────
 // Aditivo: so conta em memoria e manda um resumo por dia as 22h10 (Bahia).
@@ -361,16 +410,16 @@ PRIMEIRO apresente, de forma curta e animada, o pacote pronto *Experiência Dete
 - Valor: *a partir de R$ 5.000,00*, para Aracaju e Salvador. Para outras cidades, diga que a equipe avalia e passa as condições.
 NUNCA conte os desafios, as pistas, os mecanismos, os momentos-surpresa em detalhe nem como a história termina — é surpresa. NUNCA fale de coroa, certificados ou medalhas, nem descreva o final. NUNCA confirme data, disponibilidade ou condições de pagamento — isso é com a equipe.
 DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "aniversario") se ele ainda não aceitou. Com o aceite, colete, uma pergunta por vez: 1) nome e idade do aniversariante; 2) data da festa e horário desejado; 3) onde será — na loja da EXIT ou em outro local (se outro: cidade e endereço); 4) quantos participantes e a faixa etária dos convidados; 5) alguma preferência ou observação — opcional.
-Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉
+Ao ter os dados, chame *registrar_aniversario* (uma vez), diga com carinho que anotou tudo e siga a *instrucaoResposta* que a ferramenta devolver (chamar a coordenadora de festas). 🎉
 
 🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
 Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários.
 Antes de coletar qualquer dado, se o cliente ainda não aceitou, chame *pedir_aceite* (setor "empresa"). Depois CONVERSE: 1) nome da empresa; 2) nome e cargo de quem está falando; 3) data prevista; 4) quantas pessoas; 5) cidade/local; 6) o que a empresa quer com o evento (integração, treinamento, confraternização...). E-mail de contato, se ele quiser passar.
 NUNCA fale preço nem prometa formato — cada vivência é desenhada sob medida pela equipe.
-Ao ter os dados, chame *registrar_empresa* (uma vez). Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique: o questionário ajuda a equipe a desenhar a experiência para a realidade da empresa; deve ser preenchido no computador por alguém do RH ou da liderança; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}; e a equipe entra em contato. Se o envio do PDF falhar, diga que a equipe vai enviar o questionário.
+Ao ter os dados, chame *registrar_empresa* (uma vez), com *area* = 'escola' se for escola, rede ou secretaria de educação, 'evento_publico' se for prefeitura, secretaria, governo, feira ou organizador de evento público, e 'empresa' nos demais casos. Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique em poucas palavras: o questionário ajuda a desenhar a experiência para a realidade deles; deve ser preenchido no computador; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}. Em seguida siga a *instrucaoResposta* que a ferramenta devolver (chamar o coordenador). Se o envio do PDF falhar, diga que o coordenador vai enviar o questionário.
 
 🤝 SETOR 4 — PARCERIAS E IMPRENSA
-Se o cliente ainda não aceitou, chame *pedir_aceite* (setor "parceria") antes de coletar. Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e diga que a equipe vai retornar. Pode informar o e-mail ${CFG.emailContato}.
+Se o cliente ainda não aceitou, chame *pedir_aceite* (setor "parceria") antes de coletar. Colete: nome, empresa ou veículo, o assunto/proposta e um contato (e-mail ou telefone). Ao ter os dados, chame *registrar_parceria* (uma vez) e siga a *instrucaoResposta* que a ferramenta devolver (chamar a coordenadora). Pode informar o e-mail ${CFG.emailContato}.
 
 Se o cliente mandar um arquivo (ex.: o questionário preenchido), o sistema já repassa para a equipe automaticamente.
 
@@ -537,7 +586,8 @@ const _TOOLS = [
         cidade:           { type: 'string', description: 'Cidade/local do evento' },
         objetivo:         { type: 'string', description: 'O que a empresa quer com o evento (integração, treinamento, confraternização...)' },
         email:            { type: 'string', description: 'E-mail de contato, se o cliente informou' },
-        telefone_contato: { type: 'string', description: 'Telefone de contato, se diferente do WhatsApp' }
+        telefone_contato: { type: 'string', description: 'Telefone de contato, se diferente do WhatsApp' },
+        area:             { type: 'string', enum: ['empresa', 'escola', 'evento_publico'], description: "'escola' para escola, rede ou secretaria de educação; 'evento_publico' para prefeitura, secretaria, governo, feira ou organizador de evento público; 'empresa' para o resto" }
       },
       required: []
     }
@@ -847,7 +897,23 @@ async function _executarFerramenta(nome, input, sessao) {
       ];
     }
 
-    const linhas = [titulo, '', ...campos,
+    // [20/11/2026] Keyo chama o coordenador do setor; quem estiver com o
+    // celular do Keyo assume a conversa no lugar dele.
+    const chaveCoord = nome === 'registrar_aniversario' ? 'aniversario'
+      : nome === 'registrar_parceria' ? 'parceria'
+      : (_COORDENADORES[input.area] ? input.area : 'empresa');
+    const coord = _COORDENADORES[chaveCoord];
+    const noExpediente = _emExpediente();
+    const clienteNome = sessao.nome || 'cliente';
+    const aviso = [
+      `👉 *Cliente aguardando ${coord.ela ? 'a' : 'o'} ${coord.nome}* (${coord.setor})${noExpediente ? '' : ' — fora do expediente'}`,
+      'Quem estiver com o WhatsApp do Keyo (71 98457-3737) assume a conversa.',
+      `Sugestão: "Oi, ${clienteNome}! Aqui é ___, da Exit. ${coord.ela ? 'A' : 'O'} ${coord.nome} está em outra atividade agora, então eu sigo com você."`,
+      'Quando alguém responder pelo celular do Keyo, ele fica em silêncio nessa conversa.',
+      `Para devolver ao Keyo, mande aqui: *#keyo ${sessao.telefone}*`,
+      ''
+    ];
+    const linhas = [...aviso, titulo, '', ...campos,
       `📱 WhatsApp da conversa: ${sessao.telefone}`,
       `🕒 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`];
     if (sessao.lgpdStatus === 'aceito' && sessao.historico?.length) {
@@ -897,9 +963,19 @@ async function _executarFerramenta(nome, input, sessao) {
     }
 
     console.info(`[KEYO] 📋 ${nome} → atendimento ${okAtendimento ? 'ok' : 'falhou'}${nome === 'registrar_empresa' ? ` · questionário ${questionarioEnviado ? 'enviado' : 'NÃO enviado'}` : ''}`);
+    // Coordenador chamado: o bot segue so com duvidas simples ate alguem assumir
+    sessao.aguardaHumano = true;
+    sessao.aguardaHumanoDesde = Date.now();
+    sessao.coordenadorChamado = coord;
+    const artigo = coord.ela ? 'a' : 'o';
+    const instrucaoResposta = noExpediente
+      ? `Diga ao cliente, de forma curta e calorosa, que vai chamar ${artigo} ${coord.nome}, ${coord.cargo}, e que ${coord.ela ? 'ela' : 'ele'} já fala com ele por aqui. Não dê prazo exato e não faça novas perguntas.`
+      : `Diga ao cliente, de forma curta e calorosa, que ${artigo} ${coord.nome}, ${coord.cargo}, já encerrou o expediente de hoje e fala com ele por aqui no próximo dia útil, a partir das 8h. Não faça novas perguntas.`;
     return JSON.stringify({
       ok: true,
       enviadoAoAtendimento: okAtendimento,
+      coordenador: coord.nome,
+      instrucaoResposta,
       ...(nome === 'registrar_empresa' ? { questionarioEnviado, emailContato: CFG.emailContato } : {})
     });
   }
@@ -1008,10 +1084,10 @@ async function _pensarEResponder(mensagemUsuario, sessao) {
     systemPrompt += `
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ SITUAÇÃO ATUAL: um atendente humano JÁ foi acionado para este cliente e vai entrar em contato.
-- NÃO chame *escalar_humano* de novo. O atendente já foi avisado.
+⚠️ SITUAÇÃO ATUAL: ${sessao.coordenadorChamado ? `${sessao.coordenadorChamado.ela ? 'a' : 'o'} ${sessao.coordenadorChamado.nome} (${sessao.coordenadorChamado.cargo}) JÁ foi chamad${sessao.coordenadorChamado.ela ? 'a' : 'o'} e vai falar com o cliente por aqui` : 'um atendente humano JÁ foi acionado para este cliente e vai entrar em contato'}.
+- NÃO chame *escalar_humano* de novo. A equipe já foi avisada.
 - Continue respondendo normalmente as dúvidas simples que o cliente fizer (preço, horário, salas, pets, descontos, localização).
-- Se o cliente perguntar sobre o assunto que foi escalado, lembre com naturalidade que o atendente já está a caminho.
+- Se o cliente perguntar sobre o assunto que foi escalado, lembre com naturalidade que ${sessao.coordenadorChamado ? (sessao.coordenadorChamado.ela ? 'a ' : 'o ') + sessao.coordenadorChamado.nome : 'o atendente'} já vai falar com ele.
 - NÃO feche reserva nem gere pagamento enquanto o atendente não assumir.`;
   }
 
@@ -1372,11 +1448,49 @@ async function processarMensagem(tel, texto) {
   // ── TRAVA ANTI-LOOP ──────────────────────────────────────────────────────
   // O atendente recebe avisos do bot. Se ele responder, NAO pode virar cliente.
   if (String(tel).replace(/\D/g, '') === CFG.telAtendenteJid) {
+    // [20/11/2026] Unico comando aceito do atendimento: "#keyo <telefone>"
+    // devolve ao Keyo uma conversa que uma pessoa tinha assumido.
+    const cmd = String(texto).trim().match(/^#keyo\s+\+?([\d\s().-]{8,25})$/i);
+    if (cmd) {
+      const alvo = cmd[1].replace(/\D/g, '');
+      const s = _sessoes[alvo];
+      if (s && (s.humanoAtivo || s.aguardaHumano)) {
+        s.humanoAtivo = false;
+        s.humanoUltimaMsg = null;
+        s.aguardaHumano = false;
+        s.aguardaHumanoDesde = null;
+        s.coordenadorChamado = null;
+        if (s.historico.length) s.historico.push({ role: 'user',
+          content: '[Sistema: uma pessoa da equipe atendeu este cliente e devolveu a conversa ao Keyo. Siga normalmente, sem repetir apresentação.]' });
+        await enviarMensagem(CFG.telAtendenteJid, `✅ Conversa ${alvo} devolvida ao Keyo.`);
+        console.info(`[KEYO] ↩️  ${alvo} devolvido ao Keyo pelo atendimento`);
+      } else {
+        await enviarMensagem(CFG.telAtendenteJid, `ℹ️ Não encontrei conversa assumida para ${alvo}.`);
+      }
+      return;
+    }
     console.info(`[KEYO] ⏭️  Mensagem do atendente ignorada: "${String(texto).slice(0, 60)}"`);
     return;
   }
 
   _relRegistrarMensagem(tel, texto, _sessaoNova);
+
+  // [20/11/2026] Uma pessoa assumiu esta conversa pelo celular do Keyo:
+  // o bot fica em silencio ate passar CFG.silencioHumanoMs sem ela escrever.
+  if (sessao.humanoAtivo) {
+    if (Date.now() - (sessao.humanoUltimaMsg || 0) < CFG.silencioHumanoMs) {
+      console.info(`[KEYO] 🤫 ${tel} com atendimento de pessoa — Keyo em silêncio: "${String(texto).slice(0, 60)}"`);
+      return;
+    }
+    console.info(`[KEYO] ↩️  ${tel} sem resposta da pessoa há 12 h — Keyo retoma`);
+    sessao.humanoAtivo = false;
+    sessao.humanoUltimaMsg = null;
+    sessao.aguardaHumano = false;
+    sessao.aguardaHumanoDesde = null;
+    sessao.coordenadorChamado = null;
+    if (sessao.historico.length) sessao.historico.push({ role: 'user',
+      content: '[Sistema: uma pessoa da equipe atendeu este cliente por um tempo; o Keyo retoma agora. Siga normalmente, sem repetir apresentação.]' });
+  }
 
   // ── BLOCO NOME — vem ANTES da LGPD ───────────────────────────────────────
 
@@ -1558,6 +1672,7 @@ async function enviarMensagem(tel, texto) {
   }
   try {
     const numero = tel.includes('@') ? tel : `${tel}@s.whatsapp.net`;
+    _marcarEnvioBot(numero, texto);   // [20/11/2026] para nao confundir com pessoa
     const resp = await fetch(
       `${CFG.evolutionUrl}/message/sendText/${CFG.instanceName}`,
       {
@@ -1584,6 +1699,7 @@ async function enviarMensagem(tel, texto) {
       console.error('[KEYO] Erro Evolution API:', err);
       return false;
     }
+    await _marcarIdBot(resp);
     return true;
   } catch (e) {
     console.error('[KEYO] Erro de rede ao enviar:', e.message);
@@ -1636,6 +1752,7 @@ async function enviarDocumento(tel, base64, fileName, caption, mimetype = 'appli
   }
   try {
     const numero = tel.includes('@') ? tel : `${tel}@s.whatsapp.net`;
+    _marcarEnvioBot(numero, caption || fileName);   // [20/11/2026]
     const resp = await fetch(`${CFG.evolutionUrl}/message/sendMedia/${CFG.instanceName}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': CFG.evolutionKey },
@@ -1646,6 +1763,7 @@ async function enviarDocumento(tel, base64, fileName, caption, mimetype = 'appli
       console.error('[KEYO] Erro Evolution API (documento):', await resp.text());
       return false;
     }
+    await _marcarIdBot(resp);
     return true;
   } catch (e) {
     console.error('[KEYO] Erro de rede ao enviar documento:', e.message);
@@ -1869,6 +1987,48 @@ function devolverParaBot(tel) {
   }
 }
 
+// [20/11/2026] Mensagem "fromMe" vinda do WhatsApp do Keyo. Se foi o proprio
+// bot que enviou, ignora. Se foi uma pessoa digitando no celular/WhatsApp Web
+// do Keyo numa conversa de cliente, o Keyo passa a ficar em silencio nela.
+// Retorna 'bot' | 'pessoa' | 'ignorado'. Nunca lanca erro.
+function mensagemPropria(remoteJid, idMsg, texto) {
+  try {
+    const jid = String(remoteJid || '');
+    if (!jid || jid.endsWith('@g.us') || jid.includes('broadcast')) return 'ignorado';
+    const num = jid.split('@')[0].replace(/\D/g, '');
+    if (!num || num === CFG.telAtendenteJid) return 'ignorado';
+    _limparEnvios();
+    if (idMsg && _enviosBotId.has(String(idMsg))) return 'bot';
+    const chave = `${num}|${_normEnvio(texto)}`;
+    if (_normEnvio(texto) && _enviosBotTexto.has(chave)) {
+      _enviosBotTexto.delete(chave);
+      return 'bot';
+    }
+    // Uma pessoa escreveu ao cliente pelo celular do Keyo
+    const agora = Date.now();
+    if (!_sessoes[num]) {
+      _sessoes[num] = {
+        telefone: num, historico: [], ts: agora,
+        aguardaHumano: false, aguardaHumanoDesde: null,
+        preReserva: null, unidadeId: null,
+        // Conversa aberta por uma pessoa: quando o Keyo retomar, nao se reapresenta
+        nome: null, nomeStatus: 'ok', lgpdStatus: 'livre'
+      };
+    }
+    const s = _sessoes[num];
+    if (!s.humanoAtivo) console.info(`[KEYO] 🙋 Pessoa assumiu a conversa ${num} pelo celular do Keyo`);
+    s.humanoAtivo = true;
+    s.humanoUltimaMsg = agora;
+    s.aguardaHumano = false;
+    s.aguardaHumanoDesde = null;
+    s.ts = agora;
+    return 'pessoa';
+  } catch (e) {
+    console.error('[KEYO] mensagemPropria (ignorado):', e.message);
+    return 'ignorado';
+  }
+}
+
 function statusSessoes() {
   const todas  = Object.values(_sessoes);
   const ativas = todas.filter(s => Date.now() - s.ts < 30 * 60 * 1000);
@@ -1893,6 +2053,7 @@ const bot = {
   limparSessao,
   liberarParaHumano,
   devolverParaBot,
+  mensagemPropria,
   statusSessoes,
   _sessoes
 };

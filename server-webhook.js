@@ -36,6 +36,18 @@ const server = http.createServer(async (req, res) => {
 
         // Ignorar mensagens DO BOT
         if (event.data?.key?.fromMe === true) {
+          // [20/11/2026] Pode ser o bot OU uma pessoa digitando no celular do
+          // Keyo. Se for pessoa, o Keyo fica em silencio naquela conversa.
+          try {
+            const m = event.data.message || {};
+            const txt = m.conversation || m.extendedTextMessage?.text ||
+                        m.documentMessage?.caption || m.documentWithCaptionMessage?.message?.documentMessage?.caption ||
+                        m.imageMessage?.caption || '';
+            if (typeof bot.mensagemPropria === 'function') {
+              const quem = bot.mensagemPropria(event.data.key?.remoteJid, event.data.key?.id, txt);
+              console.log(`⏭️  [fromMe] ${quem}`);
+            }
+          } catch (e) { console.error('❌ [fromMe]', e.message); }
           console.log('⏭️  [SKIP] Mensagem enviada pelo bot (fromMe=true)');
           res.writeHead(200);
           res.end(JSON.stringify({ success: true }));
