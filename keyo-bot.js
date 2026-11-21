@@ -66,6 +66,24 @@ const CFG = {
 // como se fosse um cliente (senao a resposta dele vira uma nova conversa).
 CFG.telAtendenteJid = String(CFG.telAtendente).replace(/\D/g, '');
 
+// [21/11/2026] Alerta de aprovacao de posts do Marketing (pedido do Tiago).
+// Numero fixo de proposito (como o do atendente): o endpoint so consegue
+// mandar mensagem para ESTE numero, nunca para um numero vindo da requisicao.
+CFG.telAprovacao    = '+55 79 98131-4478';
+CFG.telAprovacaoJid = String(CFG.telAprovacao).replace(/\D/g, '');
+// Token do endpoint /alerta/aprovacao. Sem ALERTA_TOKEN no Railway, o
+// endpoint fica desligado e nada muda no atendimento.
+CFG.alertaToken     = process.env.ALERTA_TOKEN || '';
+CFG.maxAlertasDia   = 10;
+
+// Mesmo numero com e sem o 9 extra (o WhatsApp as vezes usa o formato antigo).
+function _ehTelAprovacao(tel) {
+  const n = String(tel || '').replace(/\D/g, '');
+  if (!n) return false;
+  const semNove = CFG.telAprovacaoJid.replace(/^(55\d{2})9(\d{8})$/, '$1$2');
+  return n === CFG.telAprovacaoJid || n === semNove;
+}
+
 if (!CFG.anthropicKey) console.error('[KEYO] ⚠️  ANTHROPIC_API_KEY não definida!');
 if (!CFG.evolutionUrl) console.error('[KEYO] ⚠️  EVOLUTION_URL não definida!');
 
@@ -1487,6 +1505,12 @@ function _ehRecusa(texto) {
 
 // ── Processamento de mensagem recebida ────────────────────────────────────────
 async function processarMensagem(tel, texto) {
+  // [21/11/2026] Numero que recebe os alertas de aprovacao do Marketing: se
+  // responder, NAO vira cliente (a aprovacao e dada no Mural/Painel).
+  if (_ehTelAprovacao(tel)) {
+    console.info(`[KEYO] ⏭️  Mensagem do numero de aprovacao ignorada: "${String(texto).slice(0, 60)}"`);
+    return;
+  }
   // Rate-limit
   const agora = Date.now();
   if (!_rateLimit[tel]) _rateLimit[tel] = [];
@@ -1880,6 +1904,21 @@ async function enviarMensagem(tel, texto) {
   }
 }
 
+// ── Alerta de aprovacao de posts (Marketing) — 21/11/2026 ───────────────────
+// Chamado pelo endpoint POST /alerta/aprovacao. Sempre para CFG.telAprovacao.
+const _alertas = { dia: null, qtd: 0 };
+async function enviarAlertaAprovacao(texto) {
+  const t = String(texto || '').trim().slice(0, 1500);
+  if (!t) return { ok: false, motivo: 'texto vazio' };
+  const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Bahia' });
+  if (_alertas.dia !== hoje) { _alertas.dia = hoje; _alertas.qtd = 0; }
+  if (_alertas.qtd >= CFG.maxAlertasDia) return { ok: false, motivo: 'limite diário de alertas' };
+  _alertas.qtd++;
+  const ok = await enviarMensagem(CFG.telAprovacaoJid, `🔔 *Aprovação de post — Marketing Exit*\n\n${t}`);
+  console.info(`[KEYO] 🔔 Alerta de aprovação enviado: ${ok ? 'ok' : 'falhou'}`);
+  return { ok, motivo: ok ? null : 'falha no envio' };
+}
+
 // ── Copia dos relatorios por e-mail (Resend) — 20/11/2026 ────────────────────
 // Aditivo: sem chave configurada, nao faz nada. Falha nunca afeta o WhatsApp.
 async function enviarEmailRelatorio(assunto, textoWhats, anexo) {
@@ -2003,6 +2042,7 @@ function _lerQuestionario() {
 async function processarDocumento(tel, dados) {
   try {
     if (String(tel).replace(/\D/g, '') === CFG.telAtendenteJid) return;
+    if (_ehTelAprovacao(tel)) return;
     const sessao  = _sessoes[tel];
     const msg     = dados?.message || {};
     const doc     = msg.documentMessage || msg.documentWithCaptionMessage?.message?.documentMessage || {};
@@ -2188,7 +2228,7 @@ function mensagemPropria(remoteJid, idMsg, texto) {
     const jid = String(remoteJid || '');
     if (!jid || jid.endsWith('@g.us') || jid.includes('broadcast')) return 'ignorado';
     const num = jid.split('@')[0].replace(/\D/g, '');
-    if (!num || num === CFG.telAtendenteJid) return 'ignorado';
+    if (!num || num === CFG.telAtendenteJid || _ehTelAprovacao(num)) return 'ignorado';
     _limparEnvios();
     if (idMsg && _enviosBotId.has(String(idMsg))) return 'bot';
     // "#keyo" digitado pela pessoa dentro da conversa do cliente: devolve ao Keyo
@@ -2257,6 +2297,8 @@ const bot = {
   devolverParaBot,
   mensagemPropria,
   statusSessoes,
+  enviarAlertaAprovacao,
+  alertaToken: () => CFG.alertaToken,
   _sessoes
 };
 

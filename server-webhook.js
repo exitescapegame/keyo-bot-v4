@@ -20,6 +20,39 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // [21/11/2026] Alerta de aprovacao de posts do Marketing. So manda para o
+  // numero fixo no keyo-bot.js. Desligado se ALERTA_TOKEN nao estiver definido.
+  if (req.url.split('?')[0] === '/alerta/aprovacao' && req.method === 'POST') {
+    const token = typeof bot.alertaToken === 'function' ? bot.alertaToken() : '';
+    if (!token) {
+      res.writeHead(503);
+      res.end(JSON.stringify({ error: 'alerta desligado (ALERTA_TOKEN ausente)' }));
+      return;
+    }
+    const auth = String(req.headers['authorization'] || '');
+    const crypto = require('crypto');
+    const a = Buffer.from(auth), b = Buffer.from(`Bearer ${token}`);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      res.writeHead(401);
+      res.end(JSON.stringify({ error: 'não autorizado' }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); if (body.length > 10000) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const { texto } = JSON.parse(body || '{}');
+        const r = await bot.enviarAlertaAprovacao(texto);
+        res.writeHead(r.ok ? 200 : 400);
+        res.end(JSON.stringify(r));
+      } catch (e) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ ok: false, motivo: 'JSON inválido' }));
+      }
+    });
+    return;
+  }
+
   // ✅ Aceita /webhook/evolution com qualquer sufixo (Webhook by Events)
   if ((req.url.startsWith('/webhook/evolution')) && req.method === 'POST') {
     let body = '';
