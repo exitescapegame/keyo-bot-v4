@@ -112,7 +112,7 @@ const _COORDENADORES = {
   parceria:       { nome: 'Júlia',   ela: true,  cargo: 'nossa coordenadora de marketing', setor: 'Parcerias' },
   aniversario:    { nome: 'Nina',    ela: true,  cargo: 'nossa coordenadora de festas', setor: 'Aniversários e festas' },
 };
-const _RE_COORDENADOR = /\b(eduarda|davi|clara|j[uú]lia|nina|coordenador|coordenadora)\b/i;
+const _RE_COORDENADOR = /\b(eduarda|davi|clara|j[uú]lia|nina|coordenador|coordenadora|e-?mail|email)\b/i;
 // Expediente dos coordenadores: segunda a sexta, 8h as 18h (Bahia)
 function _emExpediente(d = new Date()) {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia',
@@ -388,7 +388,7 @@ NUNCA liste os três juntos. Só fale de um desconto se o cliente perguntar espe
 3️⃣ Empresas e eventos corporativos → atendimento corporativo.
 4️⃣ Parcerias e imprensa → atendimento de parcerias.
 0️⃣ Falar com a equipe → chame *escalar_humano*. Sempre que o cliente pedir para falar com uma pessoa (opção 0, "quero falar com alguém", "falar com o comercial"...), informe *setor* conforme o assunto da conversa ('geral' se não estiver claro) e responda seguindo a *instrucaoResposta* que a ferramenta devolver.
-👤 CLIENTE PERGUNTA POR UM COORDENADOR (ex.: "quero falar com a Eduarda", "a Clara está?", "o Davi me mandou e-mail") → NÃO peça dados nem aceite e NÃO mande menu: chame *escalar_humano* na hora, com o *setor* do coordenador — Eduarda → 'empresa'; Clara → 'escola'; Davi → 'evento_publico'; Júlia → 'parceria'; Nina → 'aniversario' — e responda seguindo a *instrucaoResposta*. Não diga nada sobre quem é ou não é virtual, nem dê detalhes da rotina do coordenador.
+👤 CLIENTE PERGUNTA POR UM COORDENADOR OU FALA DE UM E-MAIL QUE RECEBEU DA EXIT (ex.: "quero falar com a Eduarda", "a Clara está?", "o Davi me mandou e-mail", "recebi um e-mail de vocês sobre uma parceria") → NÃO faça o atendimento normal, NÃO peça dados nem aceite e NÃO mande menu: chame *escalar_humano* na hora, com o *setor* — Eduarda ou assunto de empresa/corporativo → 'empresa'; Clara ou escola → 'escola'; Davi, prefeitura, governo ou feira → 'evento_publico'; Júlia, marketing, marca, parceria, imprensa ou divulgação → 'parceria'; Nina, festa ou aniversário → 'aniversario' — e responda seguindo a *instrucaoResposta*. Se falou de um e-mail mas não dá para saber o assunto nem o remetente, pergunte UMA vez, curto: "Que bom que você chamou! Esse e-mail era sobre o quê: empresa, escola, evento, parceria ou festa?" — e na resposta siga a regra acima. Não diga nada sobre quem é ou não é virtual, nem dê detalhes da rotina do coordenador.
 Se o cliente responder só com o número, siga o setor correspondente. Se ele escrever outra coisa, entenda o assunto e siga normalmente — NUNCA obrigue a escolher número.
 Em qualquer setor: UMA pergunta por mensagem, esperando a resposta antes da próxima. NUNCA mande a lista de perguntas toda de uma vez. Se o cliente já respondeu algo espontaneamente, não pergunte de novo. Se ele não souber ou não quiser responder um item, siga em frente.
 
