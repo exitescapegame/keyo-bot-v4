@@ -389,7 +389,7 @@ NUNCA liste os três juntos. Só fale de um desconto se o cliente perguntar espe
 4️⃣ Parcerias e imprensa → atendimento de parcerias.
 0️⃣ Falar com a equipe → chame *escalar_humano*. Sempre que o cliente pedir para falar com uma pessoa (opção 0, "quero falar com alguém", "falar com o comercial"...), informe *setor* conforme o assunto da conversa ('geral' se não estiver claro) e responda seguindo a *instrucaoResposta* que a ferramenta devolver.
 👤 CLIENTE PERGUNTA POR UM COORDENADOR OU FALA DE UM E-MAIL QUE RECEBEU DA EXIT (ex.: "quero falar com a Eduarda", "a Clara está?", "o Davi me mandou e-mail", "recebi um e-mail de vocês sobre uma parceria") → NÃO faça o atendimento normal, NÃO peça dados nem aceite e NÃO mande menu: chame *escalar_humano* na hora, com o *setor* — Eduarda ou assunto de empresa/corporativo → 'empresa'; Clara ou escola → 'escola'; Davi, prefeitura, governo ou feira → 'evento_publico'; Júlia, marketing, marca, parceria, imprensa ou divulgação → 'parceria'; Nina, festa ou aniversário → 'aniversario' — e responda seguindo a *instrucaoResposta*. Se falou de um e-mail mas não dá para saber o assunto nem o remetente, pergunte UMA vez, curto: "Que bom que você chamou! Esse e-mail era sobre o quê: empresa, escola, evento, parceria ou festa?" — e na resposta siga a regra acima. Não diga nada sobre quem é ou não é virtual, nem dê detalhes da rotina do coordenador.
-Se o cliente responder só com o número, siga o setor correspondente. Se ele escrever outra coisa, entenda o assunto e siga normalmente — NUNCA obrigue a escolher número.
+Os números do menu (lojas / escritório) já são tratados pelo sistema. Se o cliente escrever livremente, entenda o assunto e siga normalmente — NUNCA obrigue a escolher número. Se ele pedir o menu, diga que é só escrever *menu*.
 Em qualquer setor: UMA pergunta por mensagem, esperando a resposta antes da próxima. NUNCA mande a lista de perguntas toda de uma vez. Se o cliente já respondeu algo espontaneamente, não pergunte de novo. Se ele não souber ou não quiser responder um item, siga em frente.
 
 📍 REGRA OBRIGATÓRIA — CIDADE/UNIDADE ANTES DE QUALQUER INFORMAÇÃO
@@ -1143,6 +1143,30 @@ Se preferir, é só mandar o número:
 
 _(Para tirar dúvidas, não guardo nenhum dado seu.)_`;
 
+// [20/11/2026] Menu em dois niveis: lojas (atendimento de sempre) e escritorio (ramais)
+const _MSG_MENU_PRINCIPAL = `Por onde você quer seguir?
+
+*1* · Atendimento das lojas — salas, preços, horários, aniversários e festas
+*2* · Escritório — fale com o setor responsável
+
+_Para tirar dúvidas, não guardo nenhum dado seu._`;
+
+const _MSG_MENU_LOJAS = `Certo! Nas lojas, posso te ajudar com:
+
+*1* · Salas, preços e horários
+*2* · Aniversários e festas
+*0* · Falar com a equipe da loja`;
+
+const _MSG_MENU_ESCRITORIO = `Você está no escritório da EXIT Games. Com qual setor deseja falar?
+
+*1* · Comercial — empresas e eventos corporativos
+*2* · Eventos — feiras, prefeituras e órgãos públicos
+*3* · Pedagógico — escolas e educação
+*4* · Marketing — parcerias, marcas e imprensa
+*5* · Festas e aniversários`;
+
+const _RAMAIS = { '1': 'empresa', '2': 'evento_publico', '3': 'escola', '4': 'parceria', '5': 'aniversario' };
+
 // Aceite pedido SO quando o cliente quer orcamento (festa, empresa, parceria)
 const _MSG_TERMOS_SETOR = `Para a nossa equipe preparar o seu atendimento, preciso anotar alguns dados (nome, telefone e informações do evento). 🔒
 
@@ -1528,7 +1552,8 @@ async function processarMensagem(tel, texto) {
       console.info(`[KEYO] 👤 ${tel} pediu um coordenador logo no início`);
       return;
     }
-    await enviarMensagem(tel, `Prazer, ${nome}! ${_MSG_MENU}`);
+    sessao.menuNivel = 'principal';
+    await enviarMensagem(tel, `Prazer, ${nome}! ${_MSG_MENU_PRINCIPAL}`);
     console.info(`[KEYO] 🧭 Menu enviado para ${tel} (sem aceite: só dúvidas)`);
     return;
   }
@@ -1594,6 +1619,48 @@ async function processarMensagem(tel, texto) {
     } else {
       console.info(`[KEYO] ${tel} aguarda humano, respondendo dúvida simples: "${texto.slice(0, 60)}"`);
     }
+  }
+
+  // [20/11/2026] Navegacao do menu (lojas / escritorio) feita pelo codigo:
+  // sem IA, sem chance de confundir o numero de um nivel com o de outro.
+  const escolha = String(texto).trim().replace(/[^\d]/g, '');
+  const soNumero = /^\s*\*?\d\*?\s*$/.test(String(texto));
+  if (/^\s*menu\s*$/i.test(String(texto))) {
+    sessao.menuNivel = 'principal';
+    await enviarMensagem(tel, _MSG_MENU_PRINCIPAL);
+    return;
+  }
+  if (sessao.menuNivel && soNumero) {
+    const nivel = sessao.menuNivel;
+    if (nivel === 'principal' && (escolha === '1' || escolha === '2')) {
+      sessao.menuNivel = escolha === '1' ? 'lojas' : 'escritorio';
+      await enviarMensagem(tel, escolha === '1' ? _MSG_MENU_LOJAS : _MSG_MENU_ESCRITORIO);
+      return;
+    }
+    if (nivel === 'escritorio' && _RAMAIS[escolha]) {
+      sessao.menuNivel = null;
+      const setor = _RAMAIS[escolha];
+      const coord = _COORDENADORES[setor];
+      await _executarFerramenta('escalar_humano',
+        { motivo: `Cliente escolheu o ramal ${coord.setor} no menu do escritório`, setor }, sessao);
+      const ele = coord.ela ? 'Ela' : 'Ele';
+      const msg = _emExpediente()
+        ? `Certo! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. ${ele} já fala com você por aqui. 😊`
+        : `Certo! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. Como já passou do horário do escritório, ${ele.toLowerCase()} retorna no próximo dia útil, a partir das 8h, por aqui. Se quiser, já pode deixar sua mensagem. 😊`;
+      sessao.historico.push({ role: 'user', content: `[Menu] Escritório → ramal ${coord.setor}` });
+      sessao.historico.push({ role: 'assistant', content: msg });
+      await enviarMensagem(tel, msg);
+      console.info(`[KEYO] ☎️  ${tel} → ramal ${coord.setor} (${coord.nome})`);
+      return;
+    }
+    if (nivel === 'lojas' && ['1', '2', '0'].includes(escolha)) {
+      sessao.menuNivel = null;
+      texto = { '1': 'Quero informações sobre salas, preços e horários.',
+                '2': 'Quero saber sobre aniversários e festas.',
+                '0': 'Quero falar com a equipe da loja.' }[escolha];
+    }
+  } else if (sessao.menuNivel && !soNumero) {
+    sessao.menuNivel = null;   // escreveu livremente: segue a conversa normal
   }
 
   const resposta = await _pensarEResponder(texto, sessao);
