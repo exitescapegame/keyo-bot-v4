@@ -113,13 +113,33 @@ const _COORDENADORES = {
   aniversario:    { nome: 'Nina',    ela: true,  cargo: 'nossa coordenadora de festas', setor: 'Aniversários e festas' },
 };
 const _RE_COORDENADOR = /\b(eduarda|davi|clara|j[uú]lia|nina|coordenador|coordenadora|e-?mail|email)\b/i;
-// Expediente dos coordenadores: segunda a sexta, 8h as 18h (Bahia)
+// Expediente do escritorio: segunda a sexta, 8h as 18h (Bahia). Sabado,
+// domingo e feriado o escritorio nao trabalha (decisao do Tiago, 20/11/2026).
+// Feriados: nacionais fixos, Carnaval (seg e ter), Sexta-feira Santa, Corpus
+// Christi, 2 de julho (Bahia) e 8 de julho (Sergipe).
+function _pascoa(ano) {   // algoritmo de Meeus/Jones/Butcher
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return Date.UTC(ano, mes - 1, dia);
+}
+function _ehFeriadoEscritorio(ano, mes, dia) {
+  const fixos = ['01-01', '04-21', '05-01', '07-02', '07-08', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
+  const mmdd = `${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  if (fixos.includes(mmdd)) return true;
+  const hoje = Date.UTC(ano, mes - 1, dia), p = _pascoa(ano), D = 86400000;
+  return [p - 48 * D, p - 47 * D, p - 2 * D, p + 60 * D].includes(hoje);
+}
 function _emExpediente(d = new Date()) {
-  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia',
-    weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(d);
-  const dia  = p.find(x => x.type === 'weekday')?.value;
-  const hora = Number(p.find(x => x.type === 'hour')?.value) % 24;
-  return !['Sat', 'Sun'].includes(dia) && hora >= 8 && hora < 18;
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia', year: 'numeric',
+    month: 'numeric', day: 'numeric', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(d);
+  const v = (t) => p.find(x => x.type === t)?.value;
+  const hora = Number(v('hour')) % 24;
+  if (['Sat', 'Sun'].includes(v('weekday'))) return false;
+  if (_ehFeriadoEscritorio(Number(v('year')), Number(v('month')), Number(v('day')))) return false;
+  return hora >= 8 && hora < 18;
 }
 
 // ── Relatorio diario ao atendente (20/11/2026) ───────────────────────────────
@@ -1020,7 +1040,7 @@ async function _executarFerramenta(nome, input, sessao) {
     const quem = coord ? `${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}` : 'alguém da nossa equipe';
     const instrucaoResposta = noExpediente
       ? `Diga ao cliente, de forma curta e calorosa, que vai chamar ${quem} para falar com ele por aqui. Não dê prazo exato.`
-      : `Diga ao cliente, de forma curta e calorosa, que vai chamar ${quem}; como já passou do horário comercial, o retorno é no próximo dia útil a partir das 8h, por aqui. Pode continuar tirando dúvidas simples.`;
+      : `Diga ao cliente, de forma curta e calorosa, que vai chamar ${quem}; como o escritório está fechado agora (segunda a sexta, 8h às 18h, exceto feriados), o retorno é no próximo dia útil a partir das 8h, por aqui. Pode continuar tirando dúvidas simples.`;
     return JSON.stringify({
       escalado: true,
       mensagem: 'Atendente humano notificado.',
@@ -1675,7 +1695,7 @@ async function processarMensagem(tel, texto) {
       const ele = coord.ela ? 'Ela' : 'Ele';
       const msg = _emExpediente()
         ? `Perfeito! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. ${ele} já fala com você por aqui. 😊`
-        : `Perfeito! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. Como já passou do horário do escritório, ${ele.toLowerCase()} retorna no próximo dia útil, a partir das 8h, por aqui. Se quiser, já pode deixar sua mensagem. 😊`;
+        : `Perfeito! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. Como o escritório está fechado agora (funciona de segunda a sexta, das 8h às 18h), ${ele.toLowerCase()} retorna no próximo dia útil, a partir das 8h, por aqui. Se quiser, já pode deixar sua mensagem. 😊`;
       sessao.historico.push({ role: 'user', content: `[Menu] Escritório → ramal ${coord.setor} → já em contato` });
       sessao.historico.push({ role: 'assistant', content: msg });
       await enviarMensagem(tel, msg);
@@ -2209,6 +2229,6 @@ const bot = {
   _sessoes
 };
 
-module.exports = { bot };
+module.exports = { bot, _emExpediente };
 
 console.info('[KEYO] 🤖 Bot carregado — EXIT Games Atendente Virtual v2.0');
