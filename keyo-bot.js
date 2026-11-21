@@ -415,7 +415,7 @@ DEPOIS, se o cliente quiser seguir com orçamento, chame *pedir_aceite* (setor "
 Ao ter os dados, chame *registrar_aniversario* (uma vez) e diga ao cliente, com carinho, que anotou tudo e que a equipe vai entrar em contato para tirar as dúvidas e montar a melhor festa. 🎉
 
 🏢 SETOR 3 — EMPRESAS E EVENTOS CORPORATIVOS
-Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários.
+Ative quando ouvir: empresa, corporativo, equipe, team building, treinamento, integração, confraternização da empresa, desenvolvimento organizacional, evento para funcionários. Vale também para o primeiro contato de escolas (no lugar de empresa, pergunte o nome da escola) e de feiras, prefeituras e órgãos públicos (pergunte o órgão ou o evento).
 Antes de coletar qualquer dado, se o cliente ainda não aceitou, chame *pedir_aceite* (setor "empresa"). Depois CONVERSE: 1) nome da empresa; 2) nome e cargo de quem está falando; 3) data prevista; 4) quantas pessoas; 5) cidade/local; 6) o que a empresa quer com o evento (integração, treinamento, confraternização...). E-mail de contato, se ele quiser passar.
 NUNCA fale preço nem prometa formato — cada vivência é desenhada sob medida pela equipe.
 Ao ter os dados, chame *registrar_empresa* (uma vez). Ela envia ao cliente o *Questionário de Briefing* em PDF. Depois explique: o questionário ajuda a equipe a desenhar a experiência para a realidade da empresa; deve ser preenchido no computador por alguém do RH ou da liderança; pode ser devolvido aqui pelo WhatsApp ou para ${CFG.emailContato}; e a equipe entra em contato. Se o envio do PDF falhar, diga que a equipe vai enviar o questionário.
@@ -1165,6 +1165,11 @@ const _MSG_MENU_ESCRITORIO = `Você está no escritório da EXIT Games. Com qual
 *4* · Marketing — parcerias, marcas e imprensa
 *5* · Festas e aniversários`;
 
+const _MSG_PRIMEIRO_CONTATO = `É o seu primeiro contato com a EXIT Games?
+
+*1* · Sim, é o primeiro contato
+*2* · Não, já estou em contato com a equipe (por e-mail, por exemplo)`;
+
 const _RAMAIS = { '1': 'empresa', '2': 'evento_publico', '3': 'escola', '4': 'parceria', '5': 'aniversario' };
 
 // Aceite pedido SO quando o cliente quer orcamento (festa, empresa, parceria)
@@ -1630,7 +1635,42 @@ async function processarMensagem(tel, texto) {
     await enviarMensagem(tel, _MSG_MENU_PRINCIPAL);
     return;
   }
-  if (sessao.menuNivel && soNumero) {
+  if (sessao.menuNivel === 'contato' && sessao.ramalPendente) {
+    const t = String(texto).toLowerCase();
+    const jaTem = escolha === '2' || (!soNumero && /\bj[aá]\b|e-?mail|em contato|falando com|me (mandou|enviou|chamou)|recebi/.test(t));
+    const primeiro = escolha === '1' || (!soNumero && !jaTem && /primeir|n[aã]o|nunca|novo/.test(t));
+    const setor = sessao.ramalPendente;
+    const coord = _COORDENADORES[setor];
+    if (jaTem) {
+      sessao.menuNivel = null; sessao.ramalPendente = null;
+      await _executarFerramenta('escalar_humano',
+        { motivo: `Cliente já em contato com a equipe (ramal ${coord.setor})`, setor }, sessao);
+      const ele = coord.ela ? 'Ela' : 'Ele';
+      const msg = _emExpediente()
+        ? `Perfeito! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. ${ele} já fala com você por aqui. 😊`
+        : `Perfeito! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. Como já passou do horário do escritório, ${ele.toLowerCase()} retorna no próximo dia útil, a partir das 8h, por aqui. Se quiser, já pode deixar sua mensagem. 😊`;
+      sessao.historico.push({ role: 'user', content: `[Menu] Escritório → ramal ${coord.setor} → já em contato` });
+      sessao.historico.push({ role: 'assistant', content: msg });
+      await enviarMensagem(tel, msg);
+      console.info(`[KEYO] ☎️  ${tel} → ramal ${coord.setor} (${coord.nome}) — já em contato`);
+      return;
+    }
+    if (primeiro) {
+      // Primeiro contato: segue a conversa e o questionario de sempre do setor
+      sessao.menuNivel = null; sessao.ramalPendente = null;
+      texto = {
+        empresa:        'É meu primeiro contato. Quero falar com o comercial sobre um evento para a minha empresa.',
+        evento_publico: 'É meu primeiro contato. Quero falar sobre uma feira ou evento público (prefeitura/órgão público).',
+        escola:         'É meu primeiro contato. Sou de uma escola e quero conhecer o trabalho de vocês com escolas.',
+        parceria:       'É meu primeiro contato. Quero falar sobre uma parceria / divulgação de marca.',
+        aniversario:    'É meu primeiro contato. Quero saber sobre aniversários e festas.'
+      }[setor];
+      console.info(`[KEYO] ☎️  ${tel} → ramal ${coord.setor} — primeiro contato (conversa do setor)`);
+    } else {
+      await enviarMensagem(tel, _MSG_PRIMEIRO_CONTATO);
+      return;
+    }
+  } else if (sessao.menuNivel && soNumero) {
     const nivel = sessao.menuNivel;
     if (nivel === 'principal' && (escolha === '1' || escolha === '2')) {
       sessao.menuNivel = escolha === '1' ? 'lojas' : 'escritorio';
@@ -1638,19 +1678,9 @@ async function processarMensagem(tel, texto) {
       return;
     }
     if (nivel === 'escritorio' && _RAMAIS[escolha]) {
-      sessao.menuNivel = null;
-      const setor = _RAMAIS[escolha];
-      const coord = _COORDENADORES[setor];
-      await _executarFerramenta('escalar_humano',
-        { motivo: `Cliente escolheu o ramal ${coord.setor} no menu do escritório`, setor }, sessao);
-      const ele = coord.ela ? 'Ela' : 'Ele';
-      const msg = _emExpediente()
-        ? `Certo! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. ${ele} já fala com você por aqui. 😊`
-        : `Certo! Vou transferir para ${coord.ela ? 'a' : 'o'} ${coord.nome}, ${coord.cargo}. Como já passou do horário do escritório, ${ele.toLowerCase()} retorna no próximo dia útil, a partir das 8h, por aqui. Se quiser, já pode deixar sua mensagem. 😊`;
-      sessao.historico.push({ role: 'user', content: `[Menu] Escritório → ramal ${coord.setor}` });
-      sessao.historico.push({ role: 'assistant', content: msg });
-      await enviarMensagem(tel, msg);
-      console.info(`[KEYO] ☎️  ${tel} → ramal ${coord.setor} (${coord.nome})`);
+      sessao.menuNivel = 'contato';
+      sessao.ramalPendente = _RAMAIS[escolha];
+      await enviarMensagem(tel, _MSG_PRIMEIRO_CONTATO);
       return;
     }
     if (nivel === 'lojas' && ['1', '2', '0'].includes(escolha)) {
