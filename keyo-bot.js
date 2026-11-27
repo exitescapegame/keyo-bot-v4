@@ -408,6 +408,7 @@ ${unidade?.aceitaAgendamento
 - Chegar 15 minutos antes.
 - Crianças a partir de 10 anos, acompanhadas de um adulto.
 - 🐶 Pets são aceitos! Única condição: o pet precisa caber dentro da sala. Você SABE disso — responda direto, não escale.
+- 🎬 VÍDEO "COMO FUNCIONA": quando o cliente perguntar de forma geral como funciona o jogo ou o que é um escape room (ex.: "como funciona?", "o que é escape room?", "como é o jogo?", "nunca joguei, como é?"), chame a ferramenta enviar_video_como_funciona UMA única vez na conversa e, em seguida, explique em 2 ou 3 frases curtas. O vídeo é geral e pode ir antes de saber a cidade; as demais informações continuam seguindo a regra da cidade/unidade. NÃO envie o vídeo para perguntas sobre preço, horário, desconto, aniversariante, festas, empresas ou parcerias.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🏛️ EXIT ARACAJU
@@ -656,6 +657,12 @@ const _TOOLS = [
       required: []
     }
   },
+  // ── Vídeo "como funciona" (27/11/2026) ────────────────────────────────────
+  {
+    name: 'enviar_video_como_funciona',
+    description: 'Envia ao cliente o vídeo curto que mostra como funciona um escape room. Chame UMA única vez na conversa, quando o cliente perguntar de forma geral como funciona o jogo (ex.: "como funciona?", "o que é escape room?", "como é o jogo?", "nunca joguei"). NÃO use para perguntas de preço, horário, desconto, aniversariante, festas, empresas ou parcerias.',
+    input_schema: { type: 'object', properties: {}, required: [] }
+  },
   {
     name: 'solicitar_exclusao_lgpd',
     description: 'Processa pedido do cliente de exclusão/anonimização dos seus dados pessoais conforme Art. 18 da LGPD.',
@@ -671,6 +678,26 @@ const _TOOLS = [
 
 // ── Executor de ferramentas ───────────────────────────────────────────────────
 async function _executarFerramenta(nome, input, sessao) {
+  // ── enviar_video_como_funciona (27/11/2026) ───────────────────────────────
+  if (nome === 'enviar_video_como_funciona') {
+    try {
+      if (sessao.videoComoFuncionaEnviado) {
+        return JSON.stringify({ enviado: false, motivo: 'O vídeo já foi enviado nesta conversa. Não envie de novo: responda em texto.' });
+      }
+      const video = _lerVideoComoFunciona();
+      const ok = video ? await enviarVideo(sessao.telefone, video, 'Como_Funciona_ExitGames.mp4',
+        '🎬 Veja como funciona um escape room da EXIT Games!') : false;
+      if (ok) sessao.videoComoFuncionaEnviado = true;
+      console.info(`[KEYO] 🎬 vídeo "como funciona" ${ok ? 'enviado' : 'NÃO enviado'}`);
+      return JSON.stringify(ok
+        ? { enviado: true, instrucao: 'O vídeo já chegou ao cliente. Agora explique em 2 ou 3 frases curtas como funciona e ofereça ajuda. Não diga que vai enviar o vídeo: ele já foi enviado.' }
+        : { enviado: false, instrucao: 'Não foi possível enviar o vídeo. Não mencione vídeo: explique em texto como funciona.' });
+    } catch (e) {
+      console.error('[KEYO] Erro no vídeo "como funciona" (ignorado):', e.message);
+      return JSON.stringify({ enviado: false, instrucao: 'Não mencione vídeo: explique em texto como funciona.' });
+    }
+  }
+
   const db = await _getCache();
 
   // ── consultar_horarios ────────────────────────────────────────────────────
@@ -2030,6 +2057,46 @@ function _lerQuestionario() {
     _questionarioB64 = null;
   }
   return _questionarioB64;
+}
+
+// ── Vídeo "como funciona" — 27/11/2026 ───────────────────────────────────────
+// Mesmo endpoint do documento (sendMedia), com mediatype 'video'.
+let _videoComoFuncionaB64;
+function _lerVideoComoFunciona() {
+  if (_videoComoFuncionaB64 !== undefined) return _videoComoFuncionaB64;
+  try {
+    _videoComoFuncionaB64 = require('fs').readFileSync(
+      require('path').join(__dirname, 'assets', 'Como_Funciona_ExitGames.mp4')).toString('base64');
+  } catch (e) {
+    console.error('[KEYO] Vídeo "como funciona" não encontrado:', e.message);
+    _videoComoFuncionaB64 = null;
+  }
+  return _videoComoFuncionaB64;
+}
+async function enviarVideo(tel, base64, fileName, caption) {
+  if (!CFG.evolutionUrl || CFG.evolutionUrl.includes('SEU-SERVIDOR')) {
+    console.log(`[KEYO] [MOCK] → ${tel}: [vídeo ${fileName}] ${String(caption || '').slice(0, 60)}`);
+    return true;
+  }
+  try {
+    const numero = tel.includes('@') ? tel : `${tel}@s.whatsapp.net`;
+    _marcarEnvioBot(numero, caption || fileName);
+    const resp = await fetch(`${CFG.evolutionUrl}/message/sendMedia/${CFG.instanceName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CFG.evolutionKey },
+      body: JSON.stringify({ number: numero, mediatype: 'video', mimetype: 'video/mp4',
+                             media: base64, fileName, caption: caption || '' })
+    });
+    if (!resp.ok) {
+      console.error('[KEYO] Erro Evolution API (vídeo):', await resp.text());
+      return false;
+    }
+    await _marcarIdBot(resp);
+    return true;
+  } catch (e) {
+    console.error('[KEYO] Erro de rede ao enviar vídeo:', e.message);
+    return false;
+  }
 }
 
 // ── Documento recebido do cliente (ex.: questionario preenchido) — 20/11/2026 ─
